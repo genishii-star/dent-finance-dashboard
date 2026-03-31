@@ -1551,7 +1551,7 @@ loadJournalFromSheets(CF_GIDS['2025'], 'CF_2025');
 loadJournalFromSheets(CF_GIDS['2026'], 'CF_2026');
 
 // --- パスワード保護 ---
-const HASH = 'ecaa06595a9350362b2bc2bb268574555017f7beeb7f25294d9ef5cf574da136';
+const HASH = '2a0c03e0014025792526db14609c8a5aea606cb96f929a17a438d40f103e5b97';
 
 async function sha256(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
