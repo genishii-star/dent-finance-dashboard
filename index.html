@@ -238,8 +238,8 @@
       </div>
       <div class="kpi-card neutral">
         <div class="label">新BEP</div>
-        <div class="value" id="simBEP">128件</div>
-        <div class="sub" id="simBEPSub">現在: 128件</div>
+        <div class="value" id="simBEP">140件</div>
+        <div class="sub" id="simBEPSub">現在: 140件</div>
       </div>
     </div>
   </div>
@@ -549,12 +549,15 @@
 // ==============================
 // 定数
 // ==============================
-const FIXED_COST = 5890000;   // PM売上ベース固定費（広告費除く）
-const VARIABLE_RATE = 0;      // PM売上に対する変動費≒0
-const CONTRIBUTION_MARGIN = 1 - VARIABLE_RATE;
-const BEP = FIXED_COST / CONTRIBUTION_MARGIN;
+// BEPシート準拠（2026-04検証）
+// 固定費: COGS固定143.75万 + SGA固定292.68万 = 436.4万/月
+// 変動費/部屋: 管理ソフト2% + SW2% + BM原価90% = 38,800円
+// PM単価: 30,000円（保守的前提、万博バブル排除）→ 毎月見直し
+const FIXED_COST = 4364250;
+const CONTRIBUTION_PER_UNIT = 31200;  // (PM30k+BM40k) - 変動費38.8k
+const BEP_UNITS = Math.ceil(FIXED_COST / CONTRIBUTION_PER_UNIT);  // 140件
 const LOAN_REPAYMENT = 440000;
-const CF_BEP = (FIXED_COST + LOAN_REPAYMENT) / CONTRIBUTION_MARGIN;
+const CF_BEP_UNITS = Math.ceil((FIXED_COST + LOAN_REPAYMENT) / CONTRIBUTION_PER_UNIT);  // 154件
 
 // ==============================
 // FY2025 PL・BSデータ（freee確定値）
@@ -814,9 +817,9 @@ function renderKPI() {
   const props = toNum(latest['管理物件数']);
   const unitPrice = toNum(latest['PM単価']);
   const revenue = latest['PM売上'] ? toNum(latest['PM売上']) : props * unitPrice;
-  const pl = revenue * CONTRIBUTION_MARGIN - FIXED_COST;
+  const pl = props * CONTRIBUTION_PER_UNIT - FIXED_COST;
   const totalRevenue = filteredData.reduce((s, d) => s + (d['PM売上'] ? toNum(d['PM売上']) : toNum(d['管理物件数']) * toNum(d['PM単価'])), 0);
-  const totalPL = filteredData.reduce((s, d) => { const r = d['PM売上'] ? toNum(d['PM売上']) : toNum(d['管理物件数']) * toNum(d['PM単価']); return s + r * CONTRIBUTION_MARGIN - FIXED_COST; }, 0);
+  const totalPL = filteredData.reduce((s, d) => s + toNum(d['管理物件数']) * CONTRIBUTION_PER_UNIT - FIXED_COST, 0);
   const avgUnitPrice = Math.round(filteredData.reduce((s, d) => s + toNum(d['PM単価']), 0) / filteredData.length);
   const totalNewAdd = filteredData.reduce((s, d) => s + (toNum(d['新規追加件数']) || 0), 0);
   const totalChurn = filteredData.reduce((s, d) => s + (toNum(d['解約件数']) || 0), 0);
@@ -848,25 +851,21 @@ function renderKPI() {
   document.getElementById('kpiPLSub').textContent = isRange ? `${filteredData.length}ヶ月合計` : (displayPL >= 0 ? '黒字' : '赤字');
 
   document.getElementById('bepPeriodLabel').textContent = `（${latest['年月']}時点）`;
-  const maxVal = Math.max(revenue * 1.3, BEP * 1.2);
-  document.getElementById('bepBar').style.width = Math.min(revenue / maxVal * 100, 100).toFixed(1) + '%';
+  const maxUnits = Math.max(props * 1.3, CF_BEP_UNITS * 1.2);
+  document.getElementById('bepBar').style.width = Math.min(props / maxUnits * 100, 100).toFixed(1) + '%';
   document.getElementById('bepBar').style.background = pl >= 0 ? '#34c759' : '#ff3b30';
-  document.getElementById('bepMarker').style.left = (BEP / maxVal * 100).toFixed(1) + '%';
-  document.getElementById('bepMaxLabel').textContent = formatYen(maxVal);
-  const bepProps = Math.ceil(BEP / (unitPrice || 1));
-  const cfBepProps = Math.ceil(CF_BEP / (unitPrice || 1));
-  document.getElementById('bepLabel').textContent = `PL分岐: ${formatYen(BEP)}（${bepProps}件）/ CF分岐: ${formatYen(CF_BEP)}（${cfBepProps}件）`;
-  const gap = revenue - BEP;
-  const cfGap = revenue - CF_BEP;
-  const gapProps = Math.ceil(Math.abs(gap) / (unitPrice || 1));
-  const cfGapProps = Math.ceil(Math.abs(cfGap) / (unitPrice || 1));
+  document.getElementById('bepMarker').style.left = (BEP_UNITS / maxUnits * 100).toFixed(1) + '%';
+  document.getElementById('bepMaxLabel').textContent = maxUnits.toFixed(0) + '件';
+  document.getElementById('bepLabel').textContent = `PL分岐: ${BEP_UNITS}件 / CF分岐: ${CF_BEP_UNITS}件（固定費${formatYen(FIXED_COST)}・限界利益${formatYen(CONTRIBUTION_PER_UNIT)}/件）`;
+  const gapUnits = props - BEP_UNITS;
+  const cfGapUnits = props - CF_BEP_UNITS;
   const statusEl = document.getElementById('bepStatus');
-  const plTag = pl >= 0
-    ? `<span class="scenario-tag tag-green">PL黒字</span>　余裕 ${formatYen(gap)}（${gapProps}件分）`
-    : `<span class="scenario-tag tag-red">PL赤字</span>　あと ${formatYen(Math.abs(gap))}（${gapProps}件）`;
-  const cfTag = cfGap >= 0
-    ? `<span class="scenario-tag tag-blue">CF+</span>　余裕 ${formatYen(cfGap)}（${cfGapProps}件分）`
-    : `<span class="scenario-tag tag-red">CF−</span>　あと ${formatYen(Math.abs(cfGap))}（${cfGapProps}件）`;
+  const plTag = gapUnits >= 0
+    ? `<span class="scenario-tag tag-green">PL黒字</span>　余裕 ${gapUnits}件分`
+    : `<span class="scenario-tag tag-red">PL赤字</span>　あと ${Math.abs(gapUnits)}件`;
+  const cfTag = cfGapUnits >= 0
+    ? `<span class="scenario-tag tag-blue">CF+</span>　余裕 ${cfGapUnits}件分`
+    : `<span class="scenario-tag tag-red">CF−</span>　あと ${Math.abs(cfGapUnits)}件`;
   statusEl.innerHTML = plTag + '　　' + cfTag;
 
   const labels = filteredData.map(d => d['年月']);
@@ -875,8 +874,8 @@ function renderKPI() {
   renderChart('chartProperties', labels, [{ label: '管理物件数', data: propsData, borderColor: '#007aff', backgroundColor: 'rgba(0,122,255,0.1)', tension: 0.3, fill: true }], '件', false);
   renderChart('chartRevenue', labels, [
     { label: 'PM売上', data: revenueData, borderColor: '#34c759', backgroundColor: 'rgba(52,199,89,0.1)', tension: 0.3, fill: true },
-    { label: 'PL分岐点', data: filteredData.map(() => BEP), borderColor: '#ff9500', borderDash: [6,3], pointRadius: 0, borderWidth: 2 },
-    { label: 'CF分岐点（+返済44万）', data: filteredData.map(() => CF_BEP), borderColor: '#ff3b30', borderDash: [6,3], pointRadius: 0, borderWidth: 2 }
+    { label: `PL分岐点（${BEP_UNITS}件）`, data: filteredData.map(d => BEP_UNITS * toNum(d['PM単価'])), borderColor: '#ff9500', borderDash: [6,3], pointRadius: 0, borderWidth: 2 },
+    { label: `CF分岐点（${CF_BEP_UNITS}件）`, data: filteredData.map(d => CF_BEP_UNITS * toNum(d['PM単価'])), borderColor: '#ff3b30', borderDash: [6,3], pointRadius: 0, borderWidth: 2 }
   ], '円', true);
 }
 
@@ -901,7 +900,7 @@ function runSim() {
   const increase = staffCost + otherCost;
   const net = saving - increase;
   const newFixed = FIXED_COST - net;
-  const newBEP = Math.ceil(newFixed / (toNum(filteredData.length ? filteredData[filteredData.length-1]['PM単価'] : '46247') || 46247));
+  const newBEP = Math.ceil(newFixed / CONTRIBUTION_PER_UNIT);
 
   document.getElementById('simSaving').textContent = formatYen(saving);
   document.getElementById('simIncrease').textContent = formatYen(increase);
@@ -909,9 +908,8 @@ function runSim() {
   document.getElementById('simNetCard').className = `kpi-card ${net >= 0 ? 'positive' : 'negative'}`;
   document.getElementById('simNetSub').textContent = net >= 0 ? `固定費 ${formatM(net)} 削減` : `固定費 ${formatM(Math.abs(net))} 増加`;
   document.getElementById('simBEP').textContent = newBEP + '件';
-  const currentBEP = Math.ceil(BEP / (toNum(filteredData.length ? filteredData[filteredData.length-1]['PM単価'] : '46247') || 46247));
-  const bepDiff = currentBEP - newBEP;
-  document.getElementById('simBEPSub').textContent = bepDiff > 0 ? `現在${currentBEP}件 → ${bepDiff}件削減` : bepDiff < 0 ? `現在${currentBEP}件 → ${Math.abs(bepDiff)}件増加` : `現在と同じ`;
+  const bepDiff = BEP_UNITS - newBEP;
+  document.getElementById('simBEPSub').textContent = bepDiff > 0 ? `現在${BEP_UNITS}件 → ${bepDiff}件削減` : bepDiff < 0 ? `現在${BEP_UNITS}件 → ${Math.abs(bepDiff)}件増加` : `現在と同じ`;
 }
 
 function updateSimArea() {
