@@ -874,8 +874,8 @@ function renderKPI() {
   renderChart('chartProperties', labels, [{ label: '管理物件数', data: propsData, borderColor: '#007aff', backgroundColor: 'rgba(0,122,255,0.1)', tension: 0.3, fill: true }], '件', false);
   renderChart('chartRevenue', labels, [
     { label: 'PM売上', data: revenueData, borderColor: '#34c759', backgroundColor: 'rgba(52,199,89,0.1)', tension: 0.3, fill: true },
-    { label: `PL分岐点（${BEP_UNITS}件）`, data: filteredData.map(d => BEP_UNITS * toNum(d['PM単価'])), borderColor: '#ff9500', borderDash: [6,3], pointRadius: 0, borderWidth: 2 },
-    { label: `CF分岐点（${CF_BEP_UNITS}件）`, data: filteredData.map(d => CF_BEP_UNITS * toNum(d['PM単価'])), borderColor: '#ff3b30', borderDash: [6,3], pointRadius: 0, borderWidth: 2 }
+    { label: `PL分岐点（${BEP_UNITS}件×¥3万）`, data: filteredData.map(() => BEP_UNITS * 30000), borderColor: '#ff9500', borderDash: [6,3], pointRadius: 0, borderWidth: 2 },
+    { label: `CF分岐点（${CF_BEP_UNITS}件×¥3万）`, data: filteredData.map(() => CF_BEP_UNITS * 30000), borderColor: '#ff3b30', borderDash: [6,3], pointRadius: 0, borderWidth: 2 }
   ], '円', true);
 }
 
