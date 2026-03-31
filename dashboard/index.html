@@ -128,6 +128,7 @@
     <div class="period-presets">
       <button class="preset-btn" onclick="applyFiscal('current')">今期</button>
       <button class="preset-btn" onclick="applyFiscal('prev')">前期</button>
+      <button class="preset-btn" onclick="applyPrevMonth()">前月</button>
       <button class="preset-btn" onclick="applyPreset(3)">直近3ヶ月</button>
       <button class="preset-btn active" onclick="applyPreset(0)">全期間</button>
     </div>
@@ -274,6 +275,7 @@
     <div class="period-presets">
       <button class="preset-btn" onclick="applyPLFiscal('current')">今期</button>
       <button class="preset-btn" onclick="applyPLFiscal('prev')">前期</button>
+      <button class="preset-btn" onclick="applyPLPrevMonth()">前月</button>
       <button class="preset-btn" onclick="applyPLPreset(3)">直近3ヶ月</button>
       <button class="preset-btn active" onclick="applyPLPreset(0)">全期間</button>
     </div>
@@ -347,6 +349,7 @@
     <div class="period-presets">
       <button class="preset-btn" onclick="applyBSFiscal('current')">今期</button>
       <button class="preset-btn" onclick="applyBSFiscal('prev')">前期</button>
+      <button class="preset-btn" onclick="applyBSPrevMonth()">前月</button>
       <button class="preset-btn" onclick="applyBSPreset(3)">直近3ヶ月</button>
       <button class="preset-btn active" onclick="applyBSPreset(0)">全期間</button>
     </div>
@@ -417,6 +420,7 @@
     <div class="period-presets">
       <button class="preset-btn" onclick="applyCFFiscal('current')">今期</button>
       <button class="preset-btn" onclick="applyCFFiscal('prev')">前期</button>
+      <button class="preset-btn" onclick="applyCFPrevMonth()">前月</button>
       <button class="preset-btn" onclick="applyCFPreset(3)">直近3ヶ月</button>
       <button class="preset-btn active" onclick="applyCFPreset(0)">全期間</button>
     </div>
@@ -468,6 +472,7 @@
     <div class="period-presets">
       <button class="preset-btn" onclick="applyJFiscal('current')">今期</button>
       <button class="preset-btn active" onclick="applyJFiscal('prev')">前期</button>
+      <button class="preset-btn" onclick="applyJPrevMonth()">前月</button>
       <button class="preset-btn" onclick="applyJPreset(3)">直近3ヶ月</button>
       <button class="preset-btn" onclick="applyJPreset(0)">全期間</button>
     </div>
@@ -743,6 +748,12 @@ function getFiscalYear(offset) {
   return { from: `${fiscalStartYear}-03`, to: `${fiscalStartYear + 1}-02` };
 }
 
+function getPrevMonth() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 function applyFiscal(period) {
   const { from, to } = getFiscalYear(period === 'current' ? 0 : -1);
   document.querySelectorAll('.period-presets .preset-btn').forEach(b => b.classList.remove('active'));
@@ -768,6 +779,14 @@ function applyPreset(months) {
       return new Date(dy, dm - 1, 1) >= cutoff;
     });
   }
+  renderKPI();
+}
+
+function applyPrevMonth() {
+  const pm = getPrevMonth();
+  document.querySelectorAll('.period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  filteredData = allKpiData.filter(d => d['年月'] === pm);
   renderKPI();
 }
 
@@ -1022,6 +1041,14 @@ function applyPLPreset(n) {
   }
   renderPL();
 }
+function applyPLPrevMonth() {
+  if (!plData) return;
+  const pm = getPrevMonth();
+  document.querySelectorAll('#tab-pl .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  plFilteredMonths = plData.months.filter(m => m === pm);
+  renderPL();
+}
 function applyPLCustom() {
   if (!plData) return;
   const from = document.getElementById('plRangeFrom').value;
@@ -1136,6 +1163,14 @@ function applyBSPreset(n) {
   }
   renderBS(); renderCF();
 }
+function applyBSPrevMonth() {
+  if (!bsData) return;
+  const pm = getPrevMonth();
+  document.querySelectorAll('#tab-bs .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  bsFilteredMonths = bsData.months.filter(m => m === pm);
+  renderBS(); renderCF();
+}
 function applyBSCustom() {
   if (!bsData) return;
   const from = document.getElementById('bsRangeFrom').value;
@@ -1218,6 +1253,14 @@ function applyCFPreset(n) {
     const cutoff = new Date(y, m - n, 1);
     cfFilteredMonths = all.filter(mo => { const [dy, dm] = mo.split('-').map(Number); return new Date(dy, dm - 1, 1) >= cutoff; });
   }
+  renderCF();
+}
+function applyCFPrevMonth() {
+  if (!bsData) return;
+  const pm = getPrevMonth();
+  document.querySelectorAll('#tab-cf .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  cfFilteredMonths = bsData.months.filter(m => m === pm);
   renderCF();
 }
 function applyCFCustom() {
@@ -1396,6 +1439,13 @@ function applyJPreset(n) {
     const cutoff = new Date(y, m - n, 1);
     jFilteredData = journalData.filter(r => { const [dy, dm] = getJMonth(r.date).split('-').map(Number); return new Date(dy, dm - 1, 1) >= cutoff; });
   }
+  renderJournal();
+}
+function applyJPrevMonth() {
+  const pm = getPrevMonth();
+  document.querySelectorAll('#tab-journal .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  jFilteredData = journalData.filter(r => getJMonth(r.date) === pm);
   renderJournal();
 }
 function applyJCustom() {
