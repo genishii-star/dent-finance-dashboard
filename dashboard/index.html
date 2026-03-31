@@ -91,6 +91,12 @@
     .login-error { color: #ff3b30; font-size: 12px; margin-bottom: 12px; display: none; }
     #app-content { display: none; }
     #app-content.visible { display: block; }
+
+    /* BEPタブ 編集可能入力 */
+    .bep-input { width: 100px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; text-align: right; font-weight: 600; background: #fafafa; }
+    .bep-input:focus { outline: none; border-color: #007aff; background: white; box-shadow: 0 0 0 2px rgba(0,122,255,0.15); }
+    .bep-input-sm { width: 45px; padding: 2px 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; text-align: center; background: #fafafa; }
+    .bep-input-sm:focus { outline: none; border-color: #007aff; background: white; }
   </style>
 </head>
 <body>
@@ -469,18 +475,18 @@
 <div id="tab-bep" class="tab-content">
 <div class="container">
 
-  <div class="notice">BEPシート準拠（2026-04検証）。PM単価は保守的前提（万博バブル排除）。毎月PLと突合して見直すこと。</div>
+  <div class="notice">BEPシート準拠（2026-04検証）。数値を編集するとBEPがリアルタイムで再計算されます。毎月PLと突合して見直すこと。</div>
 
   <div class="kpi-grid">
     <div class="kpi-card positive">
       <div class="label">PL分岐点</div>
       <div class="value" id="bepPLUnits">140件</div>
-      <div class="sub">固定費 ÷ 限界利益/件</div>
+      <div class="sub" id="bepPLFormula">固定費 ÷ 限界利益/件</div>
     </div>
     <div class="kpi-card negative">
       <div class="label">CF分岐点</div>
       <div class="value" id="bepCFUnits">154件</div>
-      <div class="sub">（固定費+借入返済） ÷ 限界利益/件</div>
+      <div class="sub" id="bepCFFormula">（固定費+借入返済） ÷ 限界利益/件</div>
     </div>
     <div class="kpi-card neutral">
       <div class="label">現在の管理物件数</div>
@@ -488,25 +494,25 @@
       <div class="sub" id="bepCurrentGap">-</div>
     </div>
     <div class="kpi-card neutral">
-      <div class="label">PM単価（前提）</div>
-      <div class="value">¥30,000</div>
-      <div class="sub">毎月見直し</div>
+      <div class="label">限界利益/部屋</div>
+      <div class="value" id="bepContrib">¥31,200</div>
+      <div class="sub" id="bepContribSub">売上 − 変動費</div>
     </div>
   </div>
 
-  <!-- 計算ロジック -->
+  <!-- 計算ロジック（編集可能） -->
   <div class="charts-grid">
     <div class="chart-card full" style="padding:24px;">
-      <h2 style="margin-bottom:16px;">BEP計算ロジック</h2>
+      <h2 style="margin-bottom:16px;">BEP計算ロジック <span style="font-size:12px;color:#999;font-weight:400;">— 数値をクリックして編集</span></h2>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;">
 
         <!-- Step 1: 売上構造 -->
         <div>
           <h3 style="font-size:14px;color:#007aff;margin-bottom:12px;">STEP 1: 1部屋あたりの売上</h3>
           <table style="width:100%;font-size:13px;border-collapse:collapse;">
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:6px 0;">PM売上（管理手数料）</td><td style="text-align:right;font-weight:600;">¥30,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:6px 0;">BM売上（清掃代行）</td><td style="text-align:right;font-weight:600;">¥40,000</td></tr>
-            <tr style="background:#f5f5f7;"><td style="padding:8px 0;font-weight:600;">売上合計/部屋</td><td style="text-align:right;font-weight:700;color:#007aff;">¥70,000</td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:6px 0;">PM売上（管理手数料）</td><td style="text-align:right;"><input type="number" class="bep-input" id="bepPM" value="30000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:6px 0;">BM売上（清掃代行）</td><td style="text-align:right;"><input type="number" class="bep-input" id="bepBM" value="40000" oninput="calcBEP()"></td></tr>
+            <tr style="background:#f5f5f7;"><td style="padding:8px 0;font-weight:600;">売上合計/部屋</td><td style="text-align:right;font-weight:700;color:#007aff;" id="bepRevPerUnit">¥70,000</td></tr>
           </table>
         </div>
 
@@ -514,12 +520,12 @@
         <div>
           <h3 style="font-size:14px;color:#ff9500;margin-bottom:12px;">STEP 2: 1部屋あたりの変動費</h3>
           <table style="width:100%;font-size:13px;border-collapse:collapse;">
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:6px 0;">民泊管理ソフト（売上×2%）</td><td style="text-align:right;">¥1,400</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:6px 0;">ソフトウェア使用料（売上×2%）</td><td style="text-align:right;">¥1,400</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:6px 0;">BM原価・清掃費（BM×90%）</td><td style="text-align:right;">¥36,000</td></tr>
-            <tr style="background:#f5f5f7;"><td style="padding:8px 0;font-weight:600;">変動費計/部屋</td><td style="text-align:right;font-weight:700;color:#ff9500;">¥38,800</td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:6px 0;">民泊管理ソフト（売上×<input type="number" class="bep-input-sm" id="bepSoftRate1" value="2" oninput="calcBEP()" step="0.1">%）</td><td style="text-align:right;" id="bepSoft1">¥1,400</td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:6px 0;">ソフトウェア使用料（売上×<input type="number" class="bep-input-sm" id="bepSoftRate2" value="2" oninput="calcBEP()" step="0.1">%）</td><td style="text-align:right;" id="bepSoft2">¥1,400</td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:6px 0;">BM原価・清掃費（BM×<input type="number" class="bep-input-sm" id="bepBMRate" value="90" oninput="calcBEP()" step="1">%）</td><td style="text-align:right;" id="bepBMCost">¥36,000</td></tr>
+            <tr style="background:#f5f5f7;"><td style="padding:8px 0;font-weight:600;">変動費計/部屋</td><td style="text-align:right;font-weight:700;color:#ff9500;" id="bepVarPerUnit">¥38,800</td></tr>
           </table>
-          <div style="margin-top:8px;padding:8px 12px;background:#34c75920;border-radius:8px;font-size:13px;">
+          <div style="margin-top:8px;padding:8px 12px;background:#34c75920;border-radius:8px;font-size:13px;" id="bepContribBox">
             <strong>限界利益/部屋 = ¥70,000 − ¥38,800 = <span style="color:#34c759;font-size:16px;">¥31,200</span></strong>
           </div>
         </div>
@@ -527,56 +533,46 @@
         <!-- Step 3: 固定費 -->
         <div>
           <h3 style="font-size:14px;color:#ff3b30;margin-bottom:12px;">STEP 3: 月間固定費</h3>
-          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+          <table style="width:100%;font-size:13px;border-collapse:collapse;" id="bepFixedTable">
             <tr><td colspan="2" style="padding:6px 0;font-weight:600;color:#666;">売上原価（固定分）</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">沼倉（CS管理）</td><td style="text-align:right;">¥350,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">バイトCS（2名）</td><td style="text-align:right;">¥900,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">法定福利費</td><td style="text-align:right;">¥187,500</td></tr>
-            <tr style="background:#f0f0f0;"><td style="padding:6px 8px;font-weight:600;">COGS固定 小計</td><td style="text-align:right;font-weight:600;">¥1,437,500</td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">沼倉（CS管理）</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="cogs" value="350000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">バイトCS（2名）</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="cogs" value="900000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">法定福利費</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="cogs" value="187500" oninput="calcBEP()"></td></tr>
+            <tr style="background:#f0f0f0;"><td style="padding:6px 8px;font-weight:600;">COGS固定 小計</td><td style="text-align:right;font-weight:600;" id="bepCogsTotal">¥1,437,500</td></tr>
             <tr><td colspan="2" style="padding:8px 0 6px;font-weight:600;color:#666;">販管費（固定分）</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">役員報酬</td><td style="text-align:right;">¥1,000,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">社員・上島</td><td style="text-align:right;">¥450,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">バイト経理</td><td style="text-align:right;">¥150,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">法定福利費</td><td style="text-align:right;">¥240,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">顧問料</td><td style="text-align:right;">¥300,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">業務委託・森</td><td style="text-align:right;">¥200,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">地代家賃</td><td style="text-align:right;">¥160,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">消耗品費</td><td style="text-align:right;">¥150,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">旅費交通費</td><td style="text-align:right;">¥100,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">交際接待費</td><td style="text-align:right;">¥50,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">リース費用</td><td style="text-align:right;">¥46,750</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">福利厚生費</td><td style="text-align:right;">¥40,000</td></tr>
-            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">支払報酬料</td><td style="text-align:right;">¥40,000</td></tr>
-            <tr style="background:#f0f0f0;"><td style="padding:6px 8px;font-weight:600;">SGA固定 小計</td><td style="text-align:right;font-weight:600;">¥2,926,750</td></tr>
-            <tr style="background:#ff3b3015;"><td style="padding:8px;font-weight:700;">固定費 合計</td><td style="text-align:right;font-weight:700;color:#ff3b30;font-size:16px;">¥4,364,250</td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">役員報酬</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="1000000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">社員・上島</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="450000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">バイト経理</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="150000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">法定福利費</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="240000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">顧問料</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="300000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">業務委託・森</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="200000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">地代家賃</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="160000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">消耗品費</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="150000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">旅費交通費</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="100000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">交際接待費</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="50000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">リース費用</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="46750" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">福利厚生費</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="40000" oninput="calcBEP()"></td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">支払報酬料</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="40000" oninput="calcBEP()"></td></tr>
+            <tr style="background:#f0f0f0;"><td style="padding:6px 8px;font-weight:600;">SGA固定 小計</td><td style="text-align:right;font-weight:600;" id="bepSgaTotal">¥2,926,750</td></tr>
+            <tr style="background:#ff3b3015;"><td style="padding:8px;font-weight:700;">固定費 合計</td><td style="text-align:right;font-weight:700;color:#ff3b30;font-size:16px;" id="bepFixedTotal">¥4,364,250</td></tr>
           </table>
+          <div style="margin-top:8px;font-size:12px;color:#999;">
+            借入返済: <input type="number" class="bep-input" id="bepLoan" value="440000" oninput="calcBEP()" style="width:90px;">/月
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- BEP算出 -->
+  <!-- BEP算出結果 -->
   <div class="charts-grid">
     <div class="chart-card" style="padding:24px;">
       <h2 style="margin-bottom:16px;">PL損益分岐点</h2>
-      <div style="font-size:14px;line-height:2;">
-        <div style="color:#666;">固定費 ÷ 限界利益/部屋</div>
-        <div style="font-size:20px;font-weight:700;">¥4,364,250 ÷ ¥31,200 = <span style="color:#ff9500;">139.9 → 140件</span></div>
-        <div style="margin-top:12px;padding:12px;background:#ff950015;border-radius:8px;">
-          <strong>月間PM売上 = 140件 × ¥30,000 = ¥4,200,000</strong>
-        </div>
-      </div>
+      <div style="font-size:14px;line-height:2;" id="bepPLCalc"></div>
     </div>
     <div class="chart-card" style="padding:24px;">
       <h2 style="margin-bottom:16px;">CF損益分岐点</h2>
-      <div style="font-size:14px;line-height:2;">
-        <div style="color:#666;">（固定費 + 長期借入返済） ÷ 限界利益/部屋</div>
-        <div style="font-size:20px;font-weight:700;">¥4,804,250 ÷ ¥31,200 = <span style="color:#ff3b30;">154.0 → 154件</span></div>
-        <div style="margin-top:8px;font-size:13px;color:#666;">長期借入返済: ¥440,000/月</div>
-        <div style="margin-top:8px;padding:12px;background:#ff3b3015;border-radius:8px;">
-          <strong>月間PM売上 = 154件 × ¥30,000 = ¥4,620,000</strong>
-        </div>
-      </div>
+      <div style="font-size:14px;line-height:2;" id="bepCFCalc"></div>
     </div>
   </div>
 
@@ -605,8 +601,6 @@
     <div class="chart-card full" style="padding:24px;">
       <h2 style="margin-bottom:12px;">前提・注記</h2>
       <ul style="font-size:13px;color:#666;line-height:2;padding-left:20px;">
-        <li>BM単価は¥40,000固定で計算。BM原価率は90%（清掃外注費）</li>
-        <li>管理ソフト・ソフトウェア使用料は各2%の従量課金（売上連動）</li>
         <li>COGS固定の人件費（沼倉・バイトCS）は段階増（200物件超で増員）</li>
         <li>広告宣伝費・決算賞与・採用費は現在ゼロで計算に含まず</li>
         <li>前期（2025-03〜2026-02）はGMVベース計上。今期からPM/BM分離計上</li>
@@ -796,37 +790,82 @@ function switchTab(name) {
   if (name === 'bep') renderBEP();
 }
 
-function renderBEP() {
+function renderBEP() { calcBEP(); }
+
+function calcBEP() {
+  const pm = Number(document.getElementById('bepPM').value) || 0;
+  const bm = Number(document.getElementById('bepBM').value) || 0;
+  const r1 = Number(document.getElementById('bepSoftRate1').value) / 100;
+  const r2 = Number(document.getElementById('bepSoftRate2').value) / 100;
+  const bmRate = Number(document.getElementById('bepBMRate').value) / 100;
+  const loan = Number(document.getElementById('bepLoan').value) || 0;
+  const rev = pm + bm;
+
+  // 変動費
+  const soft1 = Math.round(rev * r1);
+  const soft2 = Math.round(rev * r2);
+  const bmCost = Math.round(bm * bmRate);
+  const varTotal = soft1 + soft2 + bmCost;
+  const contrib = rev - varTotal;
+
+  // 固定費
+  let cogsTotal = 0, sgaTotal = 0;
+  document.querySelectorAll('#bepFixedTable .bep-input[data-group="cogs"]').forEach(el => cogsTotal += Number(el.value) || 0);
+  document.querySelectorAll('#bepFixedTable .bep-input[data-group="sga"]').forEach(el => sgaTotal += Number(el.value) || 0);
+  const fixedTotal = cogsTotal + sgaTotal;
+
+  // BEP
+  const plBep = contrib > 0 ? Math.ceil(fixedTotal / contrib) : 0;
+  const cfBep = contrib > 0 ? Math.ceil((fixedTotal + loan) / contrib) : 0;
+
+  // STEP 1
+  document.getElementById('bepRevPerUnit').textContent = `¥${rev.toLocaleString()}`;
+  // STEP 2
+  document.getElementById('bepSoft1').textContent = `¥${soft1.toLocaleString()}`;
+  document.getElementById('bepSoft2').textContent = `¥${soft2.toLocaleString()}`;
+  document.getElementById('bepBMCost').textContent = `¥${bmCost.toLocaleString()}`;
+  document.getElementById('bepVarPerUnit').textContent = `¥${varTotal.toLocaleString()}`;
+  document.getElementById('bepContribBox').innerHTML = `<strong>限界利益/部屋 = ¥${rev.toLocaleString()} − ¥${varTotal.toLocaleString()} = <span style="color:#34c759;font-size:16px;">¥${contrib.toLocaleString()}</span></strong>`;
+  // STEP 3
+  document.getElementById('bepCogsTotal').textContent = `¥${cogsTotal.toLocaleString()}`;
+  document.getElementById('bepSgaTotal').textContent = `¥${sgaTotal.toLocaleString()}`;
+  document.getElementById('bepFixedTotal').textContent = `¥${fixedTotal.toLocaleString()}`;
+
+  // KPIカード
+  document.getElementById('bepPLUnits').textContent = plBep + '件';
+  document.getElementById('bepCFUnits').textContent = cfBep + '件';
+  document.getElementById('bepContrib').textContent = `¥${contrib.toLocaleString()}`;
+  document.getElementById('bepPLFormula').textContent = `¥${fixedTotal.toLocaleString()} ÷ ¥${contrib.toLocaleString()}`;
+  document.getElementById('bepCFFormula').textContent = `¥${(fixedTotal + loan).toLocaleString()} ÷ ¥${contrib.toLocaleString()}`;
+
   // 現在の物件数
   const latest = allKpiData.length ? allKpiData[allKpiData.length - 1] : null;
   const props = latest ? toNum(latest['管理物件数']) : 0;
   document.getElementById('bepCurrentUnits').textContent = props ? props + '件' : '-';
-  const gap = props - BEP_UNITS;
-  const cfGap = props - CF_BEP_UNITS;
   if (props) {
-    document.getElementById('bepCurrentGap').textContent = `PL分岐まで${gap >= 0 ? '余裕' + gap + '件' : 'あと' + Math.abs(gap) + '件'} / CF分岐まで${cfGap >= 0 ? '余裕' + cfGap + '件' : 'あと' + Math.abs(cfGap) + '件'}`;
+    const g = props - plBep, cg = props - cfBep;
+    document.getElementById('bepCurrentGap').textContent = `PL${g >= 0 ? '余裕' + g + '件' : 'あと' + Math.abs(g) + '件'} / CF${cg >= 0 ? '余裕' + cg + '件' : 'あと' + Math.abs(cg) + '件'}`;
   }
+
+  // PL/CF算出表示
+  const plRaw = (fixedTotal / contrib).toFixed(1);
+  document.getElementById('bepPLCalc').innerHTML = `<div style="color:#666;">固定費 ÷ 限界利益/部屋</div><div style="font-size:20px;font-weight:700;">¥${fixedTotal.toLocaleString()} ÷ ¥${contrib.toLocaleString()} = <span style="color:#ff9500;">${plRaw} → ${plBep}件</span></div><div style="margin-top:12px;padding:12px;background:#ff950015;border-radius:8px;"><strong>月間PM売上 = ${plBep}件 × ¥${pm.toLocaleString()} = ¥${(plBep * pm).toLocaleString()}</strong></div>`;
+
+  const cfRaw = ((fixedTotal + loan) / contrib).toFixed(1);
+  document.getElementById('bepCFCalc').innerHTML = `<div style="color:#666;">（固定費 + 借入返済） ÷ 限界利益/部屋</div><div style="font-size:20px;font-weight:700;">¥${(fixedTotal + loan).toLocaleString()} ÷ ¥${contrib.toLocaleString()} = <span style="color:#ff3b30;">${cfRaw} → ${cfBep}件</span></div><div style="margin-top:8px;font-size:13px;color:#666;">借入返済: ¥${loan.toLocaleString()}/月</div><div style="margin-top:8px;padding:12px;background:#ff3b3015;border-radius:8px;"><strong>月間PM売上 = ${cfBep}件 × ¥${pm.toLocaleString()} = ¥${(cfBep * pm).toLocaleString()}</strong></div>`;
 
   // 感度分析テーブル
   const pmPrices = [20000, 25000, 30000, 35000, 40000, 46247];
-  const bmPrice = 40000;
   let html = '';
-  pmPrices.forEach(pm => {
-    const rev = pm + bmPrice;
-    const varCost = rev * 0.02 + rev * 0.02 + bmPrice * 0.90;
-    const contrib = rev - varCost;
-    const plBep = Math.ceil(FIXED_COST / contrib);
-    const cfBep = Math.ceil((FIXED_COST + LOAN_REPAYMENT) / contrib);
-    const isCurrent = pm === 30000;
-    const style = isCurrent ? ' style="background:#007aff10;font-weight:600;"' : '';
-    html += `<tr${style}>`;
-    html += `<td style="padding:8px;">¥${pm.toLocaleString()}${isCurrent ? ' (現在)' : pm === 46247 ? ' (前期実績)' : ''}</td>`;
-    html += `<td style="padding:8px;">¥${rev.toLocaleString()}</td>`;
-    html += `<td style="padding:8px;">¥${varCost.toLocaleString()}</td>`;
-    html += `<td style="padding:8px;">¥${contrib.toLocaleString()}</td>`;
-    html += `<td style="padding:8px;color:#ff9500;font-weight:600;">${plBep}件</td>`;
-    html += `<td style="padding:8px;color:#ff3b30;font-weight:600;">${cfBep}件</td>`;
-    html += '</tr>';
+  pmPrices.forEach(p => {
+    const r = p + bm;
+    const v = Math.round(r * r1) + Math.round(r * r2) + Math.round(bm * bmRate);
+    const c = r - v;
+    const pl = c > 0 ? Math.ceil(fixedTotal / c) : '-';
+    const cf = c > 0 ? Math.ceil((fixedTotal + loan) / c) : '-';
+    const isCur = p === pm;
+    const style = isCur ? ' style="background:#007aff10;font-weight:600;"' : '';
+    html += `<tr${style}><td style="padding:8px;">¥${p.toLocaleString()}${isCur ? ' (現在)' : p === 46247 ? ' (前期実績)' : ''}</td><td style="padding:8px;">¥${r.toLocaleString()}</td><td style="padding:8px;">¥${v.toLocaleString()}</td><td style="padding:8px;">¥${c.toLocaleString()}</td><td style="padding:8px;color:#ff9500;font-weight:600;">${pl}件</td><td style="padding:8px;color:#ff3b30;font-weight:600;">${cf}件</td></tr>`;
   });
   document.getElementById('bepSensitivityTable').innerHTML = html;
 }
