@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dent Inc. 財務ダッシュボード</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif; background: #f5f5f7; color: #1d1d1f; }
+
+    header { background: #1d1d1f; color: white; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; }
+    header h1 { font-size: 18px; font-weight: 600; }
+
+    /* タブ */
+    .tab-nav { background: white; border-bottom: 1px solid #e5e5e5; display: flex; padding: 0 32px; gap: 0; }
+    .tab-btn { padding: 14px 24px; border: none; background: none; font-size: 14px; color: #666; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    .tab-btn:hover { color: #1d1d1f; }
+    .tab-btn.active { color: #007aff; border-bottom-color: #007aff; font-weight: 600; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+
+    /* 期間フィルター */
+    .period-bar { background: white; border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .period-bar label { font-size: 12px; color: #666; font-weight: 600; }
+    .period-presets { display: flex; gap: 8px; flex-wrap: wrap; }
+    .preset-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #ddd; background: white; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+    .preset-btn:hover { border-color: #007aff; color: #007aff; }
+    .preset-btn.active { background: #007aff; border-color: #007aff; color: white; }
+    .period-custom { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .period-custom input[type="month"] { padding: 5px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 12px; }
+    .period-custom span { font-size: 12px; color: #999; }
+    .apply-btn { padding: 6px 14px; background: #1d1d1f; color: white; border: none; border-radius: 8px; font-size: 12px; cursor: pointer; }
+
+    /* KPIカード */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+    .kpi-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+    .kpi-card { background: white; border-radius: 12px; padding: 20px 24px; }
+    .kpi-card .label { font-size: 12px; color: #666; margin-bottom: 8px; }
+    .kpi-card .value { font-size: 24px; font-weight: 700; }
+    .kpi-card .sub { font-size: 12px; color: #999; margin-top: 4px; }
+    .kpi-card.positive .value { color: #34c759; }
+    .kpi-card.negative .value { color: #ff3b30; }
+    .kpi-card.neutral .value { color: #1d1d1f; }
+
+    /* 損益分岐バー */
+    .bep-section { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .bep-section h2 { font-size: 14px; font-weight: 600; color: #666; margin-bottom: 16px; }
+    .bep-bar-bg { background: #f0f0f0; border-radius: 8px; height: 20px; position: relative; overflow: hidden; margin-bottom: 8px; }
+    .bep-bar-fill { height: 100%; border-radius: 8px; transition: width 0.5s; }
+    .bep-marker { position: absolute; top: 0; height: 100%; width: 2px; background: #ff3b30; }
+    .bep-labels { display: flex; justify-content: space-between; font-size: 12px; color: #999; }
+
+    /* チャート */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .chart-card { background: white; border-radius: 12px; padding: 24px; }
+    .chart-card.full { grid-column: 1 / -1; }
+    .chart-card h2 { font-size: 14px; font-weight: 600; color: #666; margin-bottom: 16px; }
+
+    /* 注記バナー */
+    .notice { background: #fff9e6; border: 1px solid #ffd60a; border-radius: 8px; padding: 10px 16px; font-size: 12px; color: #7a6000; margin-bottom: 20px; }
+
+    /* アップロード */
+    .upload-section { background: white; border-radius: 12px; padding: 24px; }
+    .upload-section h2 { font-size: 14px; font-weight: 600; color: #666; margin-bottom: 16px; }
+    .upload-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .upload-box { border: 2px dashed #ddd; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: border-color 0.2s; }
+    .upload-box:hover { border-color: #007aff; }
+    .upload-box input { display: none; }
+    .upload-box .icon { font-size: 24px; margin-bottom: 8px; }
+    .upload-box .title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .upload-box .desc { font-size: 12px; color: #999; }
+    .loaded-files { margin-top: 8px; font-size: 12px; color: #34c759; }
+
+    .scenario-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .tag-green { background: #e8f8ec; color: #34c759; }
+    .tag-red { background: #ffe8e6; color: #ff3b30; }
+    .tag-blue { background: #e6f0ff; color: #007aff; }
+    /* ログイン画面 */
+    #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #f5f5f7; z-index: 9999; display: flex; align-items: center; justify-content: center; }
+    #login-overlay.hidden { display: none; }
+    .login-box { background: white; border-radius: 16px; padding: 40px; width: 340px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .login-box h2 { font-size: 18px; margin-bottom: 6px; }
+    .login-box p { font-size: 13px; color: #666; margin-bottom: 24px; }
+    .login-box input { width: 100%; padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
+    .login-box input:focus { outline: none; border-color: #007aff; }
+    .login-box button { width: 100%; padding: 12px; background: #1d1d1f; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .login-box button:hover { background: #333; }
+    .login-error { color: #ff3b30; font-size: 12px; margin-bottom: 12px; display: none; }
+    #app-content { display: none; }
+    #app-content.visible { display: block; }
+  </style>
+</head>
+<body>
+
+<div id="login-overlay">
+  <div class="login-box">
+    <h2>Dent Inc.</h2>
+    <p>財務ダッシュボード</p>
+    <div id="login-error" class="login-error">パスワードが違います</div>
+    <input type="password" id="login-pw" placeholder="パスワード" autofocus>
+    <button onclick="tryLogin()">ログイン</button>
+  </div>
+</div>
+
+<div id="app-content">
+<header>
+  <h1>Dent Inc. 財務ダッシュボード</h1>
+  <span id="lastUpdated" style="font-size:13px;color:#999;">-</span>
+</header>
+
+<!-- タブナビ -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('kpi')">KPI</button>
+  <button class="tab-btn" onclick="switchTab('pl')">PL</button>
+  <button class="tab-btn" onclick="switchTab('bs')">BS</button>
+  <button class="tab-btn" onclick="switchTab('cf')">CF</button>
+  <button class="tab-btn" onclick="switchTab('journal')">仕訳分析</button>
+</div>
+
+<!-- ========== KPI タブ ========== -->
+<div id="tab-kpi" class="tab-content active">
+<div class="container">
+  <div class="period-bar">
+    <label>表示期間</label>
+    <div class="period-presets">
+      <button class="preset-btn" onclick="applyFiscal('current')">今期</button>
+      <button class="preset-btn" onclick="applyFiscal('prev')">前期</button>
+      <button class="preset-btn" onclick="applyPreset(3)">直近3ヶ月</button>
+      <button class="preset-btn active" onclick="applyPreset(0)">全期間</button>
+    </div>
+    <div class="period-custom">
+      <input type="month" id="rangeFrom" /><span>〜</span><input type="month" id="rangeTo" />
+      <button class="apply-btn" onclick="applyCustomRange()">適用</button>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card neutral">
+      <div class="label">管理物件数</div>
+      <div class="value" id="kpiProperties">-</div>
+      <div class="sub" id="kpiPropertiesSub">-</div>
+      <div class="sub" id="kpiPeriodNote" style="color:#aaa;font-size:11px;"></div>
+    </div>
+    <div class="kpi-card neutral">
+      <div class="label">PM単価（平均）</div>
+      <div class="value" id="kpiUnitPrice">-</div>
+      <div class="sub" id="kpiUnitPriceSub">-</div>
+      <div class="sub" id="kpiUnitPriceYoY" style="color:#aaa;font-size:11px;"></div>
+    </div>
+    <div class="kpi-card neutral">
+      <div class="label">PM売上</div>
+      <div class="value" id="kpiRevenue">-</div>
+      <div class="sub" id="kpiRevenueSub">物件数 × 単価</div>
+    </div>
+    <div class="kpi-card neutral" id="kpiPLCard">
+      <div class="label">損益（概算）</div>
+      <div class="value" id="kpiPL">-</div>
+      <div class="sub" id="kpiPLSub">-</div>
+    </div>
+  </div>
+
+  <div class="bep-section">
+    <h2>損益分岐点との距離 <span id="bepPeriodLabel" style="font-weight:400;color:#aaa;font-size:12px;"></span></h2>
+    <div class="bep-bar-bg">
+      <div class="bep-bar-fill" id="bepBar" style="width:0%;background:#34c759;"></div>
+      <div class="bep-marker" id="bepMarker" style="left:0%;"></div>
+    </div>
+    <div class="bep-labels">
+      <span>0円</span>
+      <span id="bepLabel">損益分岐点: 5,475,000円</span>
+      <span id="bepMaxLabel">-</span>
+    </div>
+    <div style="margin-top:12px;font-size:13px;" id="bepStatus">-</div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h2>管理物件数推移</h2>
+      <canvas id="chartProperties"></canvas>
+    </div>
+    <div class="chart-card">
+      <h2>PM売上 vs 損益分岐点</h2>
+      <canvas id="chartRevenue"></canvas>
+    </div>
+  </div>
+
+  <div class="bep-section">
+    <h2>清掃内製化シミュレーション</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">現在の外注費/月</label>
+        <input type="text" id="simCurrentOut" value="5,320,000" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;" />
+      </div>
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">エリア</label>
+        <select id="simArea" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;" onchange="updateSimArea()">
+          <option value="all">全エリア一括</option>
+          <option value="osaka">大阪</option>
+          <option value="kyoto">京都</option>
+          <option value="tokyo">東京</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">内製化率</label>
+        <input type="range" id="simRate" min="0" max="100" value="0" style="width:100%;" oninput="runSim()" />
+        <div style="text-align:center;font-size:14px;font-weight:600;" id="simRateLabel">0%</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">内製スタッフ人件費/月（内製化分）</label>
+        <input type="text" id="simStaffCost" value="0" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;" oninput="runSim()" />
+      </div>
+      <div>
+        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">内製消耗品・交通費等/月</label>
+        <input type="text" id="simOtherCost" value="0" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;" oninput="runSim()" />
+      </div>
+    </div>
+    <div class="kpi-grid" id="simResults">
+      <div class="kpi-card neutral">
+        <div class="label">外注費削減</div>
+        <div class="value" id="simSaving">¥0</div>
+        <div class="sub">内製化による</div>
+      </div>
+      <div class="kpi-card neutral">
+        <div class="label">内製コスト増</div>
+        <div class="value" id="simIncrease">¥0</div>
+        <div class="sub">人件費+消耗品</div>
+      </div>
+      <div class="kpi-card neutral" id="simNetCard">
+        <div class="label">月次インパクト</div>
+        <div class="value" id="simNet">¥0</div>
+        <div class="sub" id="simNetSub">固定費への影響</div>
+      </div>
+      <div class="kpi-card neutral">
+        <div class="label">新BEP</div>
+        <div class="value" id="simBEP">128件</div>
+        <div class="sub" id="simBEPSub">現在: 128件</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="upload-section">
+    <h2>データ読み込み</h2>
+    <div class="upload-grid">
+      <div class="upload-box" onclick="document.getElementById('kpiInput').click()">
+        <input type="file" id="kpiInput" accept=".csv" multiple onchange="loadKPI(this)">
+        <div class="icon">📊</div>
+        <div class="title">KPI CSV</div>
+        <div class="desc">data/kpi/ のCSVをアップロード</div>
+        <div class="loaded-files" id="kpiLoaded"></div>
+      </div>
+      <div class="upload-box" onclick="document.getElementById('freeeInputKpi').click()">
+        <input type="file" id="freeeInputKpi" accept=".csv" multiple>
+        <div class="icon">💰</div>
+        <div class="title">freee CSV</div>
+        <div class="desc">PL・BSタブで読み込み</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ========== PL タブ ========== -->
+<div id="tab-pl" class="tab-content">
+<div class="container">
+  <div class="notice">⚠️ 前期（2025年3月〜2026年2月）はGMVベースの売上計上です。今期以降のPM/BM売上ベースとは比較できません。</div>
+
+  <div class="period-bar">
+    <label>表示期間</label>
+    <div class="period-presets">
+      <button class="preset-btn" onclick="applyPLFiscal('current')">今期</button>
+      <button class="preset-btn" onclick="applyPLFiscal('prev')">前期</button>
+      <button class="preset-btn" onclick="applyPLPreset(3)">直近3ヶ月</button>
+      <button class="preset-btn active" onclick="applyPLPreset(0)">全期間</button>
+    </div>
+    <div class="period-custom">
+      <input type="month" id="plRangeFrom" /><span>〜</span><input type="month" id="plRangeTo" />
+      <button class="apply-btn" onclick="applyPLCustom()">適用</button>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card neutral">
+      <div class="label">売上高（GMV）</div>
+      <div class="value" id="plRevTotal">-</div>
+      <div class="sub" id="plRevSub">-</div>
+    </div>
+    <div class="kpi-card neutral" id="plOpCard">
+      <div class="label">営業利益</div>
+      <div class="value" id="plOpTotal">-</div>
+      <div class="sub" id="plOpSub">-</div>
+    </div>
+    <div class="kpi-card neutral" id="plOrdCard">
+      <div class="label">経常利益</div>
+      <div class="value" id="plOrdTotal">-</div>
+      <div class="sub" id="plOrdSub">-</div>
+    </div>
+    <div class="kpi-card neutral" id="plNetCard">
+      <div class="label">当期純損益</div>
+      <div class="value" id="plNetTotal">-</div>
+      <div class="sub" id="plNetSub">特別損失含む</div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card full">
+      <h2>月次損益推移</h2>
+      <canvas id="chartPL"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h2>主要費用内訳（月次）</h2>
+      <canvas id="chartCost"></canvas>
+    </div>
+    <div class="chart-card">
+      <h2>売上総利益 vs 販管費</h2>
+      <canvas id="chartGP"></canvas>
+    </div>
+  </div>
+
+  <div class="upload-section">
+    <h2>データソース</h2>
+    <div class="upload-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="upload-box" onclick="document.getElementById('plInput').click()">
+        <input type="file" id="plInput" accept=".csv" onchange="loadPL(this)">
+        <div class="icon">📈</div>
+        <div class="title">手動CSV読み込み</div>
+        <div class="desc">freee 月次推移：損益計算書</div>
+        <div class="loaded-files" id="plLoaded">スプシから自動取得中...</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ========== BS タブ ========== -->
+<div id="tab-bs" class="tab-content">
+<div class="container">
+  <div class="period-bar">
+    <label>表示期間</label>
+    <div class="period-presets">
+      <button class="preset-btn" onclick="applyBSFiscal('current')">今期</button>
+      <button class="preset-btn" onclick="applyBSFiscal('prev')">前期</button>
+      <button class="preset-btn" onclick="applyBSPreset(3)">直近3ヶ月</button>
+      <button class="preset-btn active" onclick="applyBSPreset(0)">全期間</button>
+    </div>
+    <div class="period-custom">
+      <input type="month" id="bsRangeFrom" /><span>〜</span><input type="month" id="bsRangeTo" />
+      <button class="apply-btn" onclick="applyBSCustom()">適用</button>
+    </div>
+  </div>
+
+  <div class="kpi-grid-3">
+    <div class="kpi-card neutral">
+      <div class="label">総資産</div>
+      <div class="value" id="bsTotalAsset">-</div>
+      <div class="sub" id="bsTotalAssetSub">-</div>
+    </div>
+    <div class="kpi-card neutral" id="bsNetCard">
+      <div class="label">純資産</div>
+      <div class="value" id="bsNetAsset">-</div>
+      <div class="sub" id="bsNetAssetSub">-</div>
+    </div>
+    <div class="kpi-card neutral">
+      <div class="label">現金・預金</div>
+      <div class="value" id="bsCash">-</div>
+      <div class="sub" id="bsCashSub">-</div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card full">
+      <h2>資産・負債・純資産 月次推移</h2>
+      <canvas id="chartBS"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h2>現金・預金残高推移</h2>
+      <canvas id="chartCash"></canvas>
+    </div>
+    <div class="chart-card">
+      <h2>売掛金推移</h2>
+      <canvas id="chartAR"></canvas>
+    </div>
+  </div>
+
+  <div class="upload-section">
+    <h2>データソース</h2>
+    <div class="upload-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="upload-box" onclick="document.getElementById('bsInput').click()">
+        <input type="file" id="bsInput" accept=".csv" onchange="loadBS(this)">
+        <div class="icon">🏦</div>
+        <div class="title">手動CSV読み込み</div>
+        <div class="desc">freee 月次推移：貸借対照表</div>
+        <div class="loaded-files" id="bsLoaded">スプシから自動取得中...</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ========== CF タブ ========== -->
+<div id="tab-cf" class="tab-content">
+<div class="container">
+  <div class="notice">💡 CFはBSの現金・預金残高の月次変動から算出しています。</div>
+
+  <div class="period-bar">
+    <label>表示期間</label>
+    <div class="period-presets">
+      <button class="preset-btn" onclick="applyCFFiscal('current')">今期</button>
+      <button class="preset-btn" onclick="applyCFFiscal('prev')">前期</button>
+      <button class="preset-btn" onclick="applyCFPreset(3)">直近3ヶ月</button>
+      <button class="preset-btn active" onclick="applyCFPreset(0)">全期間</button>
+    </div>
+    <div class="period-custom">
+      <input type="month" id="cfRangeFrom" /><span>〜</span><input type="month" id="cfRangeTo" />
+      <button class="apply-btn" onclick="applyCFCustom()">適用</button>
+    </div>
+  </div>
+
+  <div class="kpi-grid-3">
+    <div class="kpi-card neutral">
+      <div class="label">期首現金・預金</div>
+      <div class="value" id="cfStart">-</div>
+      <div class="sub" id="cfStartSub">-</div>
+    </div>
+    <div class="kpi-card neutral">
+      <div class="label">期末現金・預金</div>
+      <div class="value" id="cfEnd">-</div>
+      <div class="sub" id="cfEndSub">-</div>
+    </div>
+    <div class="kpi-card neutral" id="cfNetCard">
+      <div class="label">期間増減</div>
+      <div class="value" id="cfNet">-</div>
+      <div class="sub" id="cfNetSub">-</div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card full">
+      <h2>現金・預金残高 月次推移</h2>
+      <canvas id="chartCF"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card full">
+      <h2>月次現金増減（キャッシュフロー）</h2>
+      <canvas id="chartCFBar"></canvas>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ========== 仕訳分析タブ ========== -->
+<div id="tab-journal" class="tab-content">
+<div class="container">
+  <div class="period-bar">
+    <label>表示期間</label>
+    <div class="period-presets">
+      <button class="preset-btn" onclick="applyJFiscal('current')">今期</button>
+      <button class="preset-btn active" onclick="applyJFiscal('prev')">前期</button>
+      <button class="preset-btn" onclick="applyJPreset(3)">直近3ヶ月</button>
+      <button class="preset-btn" onclick="applyJPreset(0)">全期間</button>
+    </div>
+    <div class="period-custom">
+      <input type="month" id="jRangeFrom" /><span>〜</span><input type="month" id="jRangeTo" />
+      <button class="apply-btn" onclick="applyJCustom()">適用</button>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card neutral">
+      <div class="label">取引件数</div>
+      <div class="value" id="jCount">-</div>
+      <div class="sub" id="jCountSub">-</div>
+    </div>
+    <div class="kpi-card neutral">
+      <div class="label">総入金額</div>
+      <div class="value" id="jInTotal">-</div>
+      <div class="sub" id="jInSub">-</div>
+    </div>
+    <div class="kpi-card neutral">
+      <div class="label">総出金額</div>
+      <div class="value" id="jOutTotal">-</div>
+      <div class="sub" id="jOutSub">-</div>
+    </div>
+    <div class="kpi-card neutral" id="jAlertCard">
+      <div class="label">異常値検出</div>
+      <div class="value" id="jAlertCount">-</div>
+      <div class="sub" id="jAlertSub">月平均の2倍超</div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h2>勘定科目別 出金額（Top10）</h2>
+      <canvas id="chartJCategory"></canvas>
+    </div>
+    <div class="chart-card">
+      <h2>部門別 出金額</h2>
+      <canvas id="chartJDept"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card full">
+      <h2>月次 科目別出金推移</h2>
+      <canvas id="chartJMonthly"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card full">
+      <h2 id="jAlertTitle">異常値取引（月平均の2倍超）</h2>
+      <div id="jAlertTable" style="max-height:300px;overflow-y:auto;font-size:13px;">-</div>
+    </div>
+  </div>
+
+  <div class="upload-section">
+    <h2>データソース</h2>
+    <div class="upload-grid" style="grid-template-columns:1fr 1fr;">
+      <div class="upload-box" onclick="document.getElementById('cfJournalInput').click()">
+        <input type="file" id="cfJournalInput" accept=".csv" multiple onchange="loadJournalCSV(this)">
+        <div class="icon">📋</div>
+        <div class="title">手動CSV読み込み</div>
+        <div class="desc">freee 仕訳明細CSV</div>
+        <div class="loaded-files" id="jLoaded">スプシから自動取得中...</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ==============================
+// 定数
+// ==============================
+const FIXED_COST = 5890000;   // PM売上ベース固定費（広告費除く）
+const VARIABLE_RATE = 0;      // PM売上に対する変動費≒0
+const CONTRIBUTION_MARGIN = 1 - VARIABLE_RATE;
+const BEP = FIXED_COST / CONTRIBUTION_MARGIN;
+const LOAN_REPAYMENT = 440000;
+const CF_BEP = (FIXED_COST + LOAN_REPAYMENT) / CONTRIBUTION_MARGIN;
+
+// ==============================
+// FY2025 PL・BSデータ（freee確定値）
+// ==============================
+const FY25_MONTHS = ['2025-03','2025-04','2025-05','2025-06','2025-07','2025-08','2025-09','2025-10','2025-11','2025-12','2026-01','2026-02'];
+function _m(v){const o={};FY25_MONTHS.forEach((m,i)=>o[m]=v[i]);return o;}
+
+const FY25_PL = { months: [...FY25_MONTHS], data: {
+  '売上高': _m([42022201,56186675,50899033,38954910,39097958,38601701,44429504,58979944,45001514,42184877,27456783,26051139]),
+  '売上値引高': _m([0,0,0,-69300,0,0,0,0,0,0,0,0]),
+  '売上高 計': _m([42022201,56186675,50899033,38885610,39097958,38601701,44429504,58979944,45001514,42184877,27456783,26051139]),
+  '売上原価': _m([0,25461,0,424405,0,18150,0,0,0,0,0,26244]),
+  '売上総損益金額': _m([42022201,56161214,50899033,38461205,39097958,38583551,44429504,58979944,45001514,42184877,27456783,26024895]),
+  '役員報酬': _m([1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000,1000000]),
+  '給料手当': _m([1704519,1716128,1715643,1632203,1605943,1572557,1561008,1595807,1564631,1732956,1498623,1510553]),
+  '賞与': _m([0,0,0,0,0,0,40000,0,0,0,0,0]),
+  '法定福利費': _m([134043,191640,-129857,454630,311213,230481,230481,236261,285391,285391,435671,-109651]),
+  '福利厚生費': _m([0,2000,0,0,0,0,137080,0,0,346500,2000,0]),
+  '外注費': _m([5510233,6528535,5497702,5869096,4785238,5493533,5377946,5549625,4810538,5101926,4580155,4780859]),
+  '荷造運賃': _m([20711,11836,0,2618,0,0,0,2120,0,0,0,0]),
+  '広告宣伝費': _m([26682,29323,3967,0,73086,125659,1490444,144306,1207698,1194352,1348834,1281556]),
+  '交際費': _m([33400,36400,123668,81660,93304,138920,227667,102032,35208,149944,5665,168780]),
+  '会議費': _m([102390,4632,12620,20345,31515,3504,46190,15653,39533,16965,20307,18156]),
+  '旅費交通費': _m([125990,57350,156581,130088,75420,53100,209949,215685,74743,66960,81490,458955]),
+  '通信費': _m([146576,141851,371023,150373,163666,167111,101966,150223,114419,130601,120252,115273]),
+  '消耗品費': _m([317773,157187,126455,298559,375176,137948,172901,48604,122224,300599,306159,1751740]),
+  '修繕費': _m([79900,34760,63550,93400,82500,365980,86000,0,0,191950,340600,168300]),
+  '水道光熱費': _m([275609,180436,175611,137848,193254,132293,278778,146716,75894,197755,195815,301357]),
+  '新聞図書費': _m([1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500,1500]),
+  '諸会費': _m([0,2400,9200,0,0,0,0,45600,600,2800,600,1700]),
+  '支払手数料': _m([5563690,7989174,6651818,6062654,5341273,10372938,6122588,7408219,5865962,4864087,4518065,3285845]),
+  '地代家賃': _m([25280275,33611716,28612413,21500448,22742562,21850725,27161333,35440439,26754404,24798785,15724989,15177596]),
+  '賃借料': _m([220660,220330,221320,495,0,0,7310,130280,7530,7530,7530,7310]),
+  'リース料': _m([46750,46750,46750,46750,46750,46750,46750,46750,46750,46750,46750,46750]),
+  '保険料': _m([0,0,0,0,0,0,18000,0,0,145770,0,0]),
+  '租税公課': _m([34702,47979,330914,58766,49529,34752,562475,98612,132763,224002,194530,5329405]),
+  '支払報酬料': _m([88000,88000,88000,88000,110000,88000,88000,88000,88000,125400,88000,88000]),
+  '減価償却費': _m([0,0,0,0,0,0,0,0,0,0,0,1177428]),
+  '販売管理費 計': _m([40713403,52099927,45078878,37629433,37081929,41815751,44968366,52466432,42227788,40932523,30517535,36561412]),
+  '営業損益金額': _m([1308798,4061287,5820155,831772,2016029,-3232200,-538862,6513512,2773726,1252354,-3060752,-10536517]),
+  '経常損益金額': _m([1325429,4078296,5848696,846832,2023177,-3167312,-275958,9815645,3906813,1290044,-3018227,-15190330]),
+  '当期純損益金額': _m([1325429,4078296,5848696,846832,2023177,-3167312,-275958,9815645,3906813,1290044,-3018227,-30957941]),
+}};
+
+const FY25_BS = { months: [...FY25_MONTHS], data: {
+  '現金': _m([295512,291705,51351,34252,40313,122226,153158,230338,296533,206157,187040,106408]),
+  'みずほ（法人）（API）': _m([417117,119084,1884543,1368000,1227801,1225151,1618987,2203084,2948742,4801686,2485616,1859513]),
+  '住信ＳＢＩネット（法人）': _m([29928,2687261,272747,2611802,209373,1231075,1283784,3497575,1168266,3236244,699251,582762]),
+  '大阪信用金庫': _m([59283,84844,110099,137721,163462,189551,216286,242754,269958,576911,324107,353211]),
+  '楽天（法人）（API）': _m([349785,191124,513242,504354,629671,719362,719782,755222,755222,755222,755222,755222]),
+  'GMOあおぞらネット（法人）（API）': _m([0,43,115813,187161,28958,28978,268965,268783,312697,555646,159942,388206]),
+  'ＰａｙＰａｙ銀行（API）': _m([8923693,16444404,11885325,6741251,7285291,2128682,1244563,10046740,4657619,649730,10245,526]),
+  '売掛金': _m([8496074,8967401,11684498,9182663,11833020,12498995,15429243,18639568,20887848,21799984,17699888,17083610]),
+  'Stripe': _m([-884750,-884750,-884750,-884750,-884750,-884750,-884750,-884750,-884750,-884750,-884750,0]),
+  '流動資産 計': _m([20861481,32235690,28407880,22657466,23316951,20034282,22825030,37774326,34287147,34471842,24211573,22669458]),
+  '資産 計': _m([29444861,40819070,36991260,31240846,31900331,28617662,31408410,46357706,42870527,43055222,32794953,30455410]),
+  '流動負債 計': _m([11961541,19697615,10460961,4303051,3378380,3702050,7206852,12778280,5821559,5153157,-1651963,21290855]),
+  '長期借入金': _m([24348830,23908669,23468817,23029481,22590460,22151433,21713337,21275560,20838289,20401342,19964420,25640000]),
+  '役員借入金': _m([25166133,24316133,23466133,22616133,21966133,21966133,21966133,21966133,21966133,21966133,24966133,3000000]),
+  '負債 計': _m([36310371,43606284,33929778,27332532,25968840,25853483,28920189,34053840,26659848,25554499,18312457,46930855]),
+  '純資産 計': _m([-6865510,-2787214,3061482,3908314,5931491,2764179,2488221,12303866,16210679,17500723,14482496,-16475445]),
+}};
+
+// PL/BSシートGID
+const PL_GIDS = { '2025': '1845958654', '2026': '817270267' };
+const BS_GIDS = { '2025': '1983761124', '2026': '803904900' };
+const CF_GIDS = { '2025': '896206855', '2026': '1671351581' };
+
+// ==============================
+// ユーティリティ
+// ==============================
+function formatYen(v) { return '¥' + Math.round(v).toLocaleString(); }
+function formatM(v) { return (v / 10000).toFixed(0) + '万'; }
+function toNum(v) { return Math.round(parseFloat(String(v).replace(/,/g, ''))) || 0; }
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// CSVパーサー（クォート対応）
+function parseCSVLine(line) {
+  const result = [];
+  let inQ = false, cur = '';
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') { inQ = !inQ; }
+    else if (line[i] === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+    else { cur += line[i]; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+function parseFreeeCSV(text) {
+  const lines = text.split('\n').map(parseCSVLine);
+  // ヘッダー行を探す（年月パターン）
+  let headerIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].some(c => c.match(/^\d{4}-\d{2}$/))) { headerIdx = i; break; }
+  }
+  if (headerIdx < 0) return null;
+
+  const headers = lines[headerIdx];
+  const months = headers.filter(c => c.match(/^\d{4}-\d{2}$/));
+  const monthIdx = {};
+  headers.forEach((c, i) => { if (c.match(/^\d{4}-\d{2}$/)) monthIdx[c] = i; });
+
+  const data = {};
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const row = lines[i];
+    const label = row.find(c => c !== '') || '';
+    if (!label || label === '') continue;
+    data[label] = {};
+    months.forEach(m => {
+      const v = row[monthIdx[m]] || '0';
+      data[label][m] = toNum(v);
+    });
+  }
+  return { months, data };
+}
+
+// ==============================
+// KPI タブ
+// ==============================
+let allKpiData = [], filteredData = [];
+let activePreset = 0;
+
+window._kpiCallback = function(response) {
+  const statusEl = document.getElementById('kpiLoaded');
+  if (!response || response.status !== 'ok') { statusEl.textContent = '取得失敗'; loadDemo(); return; }
+  const cols = response.table.cols;
+  const rawRows = response.table.rows || [];
+  const rows = rawRows.map(row => {
+    const obj = {};
+    cols.forEach((col, i) => {
+      const cell = row.c ? row.c[i] : null;
+      const colName = col.label.trim();
+      let val = '';
+      if (cell && cell.v !== null && cell.v !== undefined) {
+        const raw = String(cell.v);
+        val = raw.startsWith('Date(') ? (cell.f ? String(cell.f) : raw) : raw;
+      }
+      obj[colName] = val;
+    });
+    return obj;
+  }).filter(d => d[cols[0].label.trim()]);
+
+  if (rows.length > 0) {
+    allKpiData = rows.sort((a, b) => a['年月'].localeCompare(b['年月']));
+    filteredData = [...allKpiData];
+    const last = allKpiData[allKpiData.length - 1]['年月'];
+    document.getElementById('lastUpdated').textContent = `最終更新: ${last}`;
+    document.getElementById('rangeFrom').value = allKpiData[0]['年月'];
+    document.getElementById('rangeTo').value = last;
+    statusEl.textContent = `スプシから${rows.length}ヶ月分読み込み済み`;
+    statusEl.style.color = '#34c759';
+    applyPreset(0);
+  } else { loadDemo(); }
+};
+
+function loadKPI(input) {
+  const files = Array.from(input.files);
+  Promise.all(files.map(f => new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const lines = e.target.result.trim().split('\n');
+      const headers = lines[0].split(',').map(h => h.trim());
+      const rows = lines.slice(1).filter(l => l.trim()).map(line => {
+        const vals = line.split(',');
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = vals[i]?.trim() || '');
+        return obj;
+      });
+      resolve(rows);
+    };
+    reader.readAsText(f, 'UTF-8');
+  }))).then(results => {
+    allKpiData = results.flat().sort((a, b) => a['年月'].localeCompare(b['年月']));
+    document.getElementById('kpiLoaded').textContent = `${files.length}件読み込み済み`;
+    applyPreset(0);
+  });
+}
+
+function getFiscalYear(offset) {
+  const today = new Date();
+  const month = today.getMonth() + 1;
+  const year = today.getFullYear();
+  const fiscalStartYear = month >= 3 ? year + offset : year - 1 + offset;
+  return { from: `${fiscalStartYear}-03`, to: `${fiscalStartYear + 1}-02` };
+}
+
+function applyFiscal(period) {
+  const { from, to } = getFiscalYear(period === 'current' ? 0 : -1);
+  document.querySelectorAll('.period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  filteredData = allKpiData.filter(d => d['年月'] >= from && d['年月'] <= to);
+  renderKPI();
+}
+
+function applyPreset(months) {
+  activePreset = months;
+  document.querySelectorAll('.period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  const map = { 3: '直近3ヶ月', 0: '全期間' };
+  if (map[months]) Array.from(document.querySelectorAll('.period-presets .preset-btn')).find(b => b.textContent === map[months])?.classList.add('active');
+  if (!allKpiData.length) return;
+  if (months === 0) {
+    filteredData = [...allKpiData];
+  } else {
+    const last = allKpiData[allKpiData.length - 1]['年月'];
+    const [y, m] = last.split('-').map(Number);
+    const cutoff = new Date(y, m - months, 1);
+    filteredData = allKpiData.filter(d => {
+      const [dy, dm] = d['年月'].split('-').map(Number);
+      return new Date(dy, dm - 1, 1) >= cutoff;
+    });
+  }
+  renderKPI();
+}
+
+function applyCustomRange() {
+  const from = document.getElementById('rangeFrom').value;
+  const to = document.getElementById('rangeTo').value;
+  if (!from || !to) return;
+  document.querySelectorAll('.period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  filteredData = allKpiData.filter(d => d['年月'] >= from && d['年月'] <= to);
+  renderKPI();
+}
+
+function renderKPI() {
+  if (!filteredData.length) {
+    ['kpiProperties','kpiUnitPrice','kpiRevenue','kpiPL'].forEach(id => document.getElementById(id).textContent = '-');
+    document.getElementById('bepStatus').textContent = 'この期間のデータがまだありません';
+    document.getElementById('bepBar').style.width = '0%';
+    if (charts['chartProperties']) charts['chartProperties'].destroy();
+    if (charts['chartRevenue']) charts['chartRevenue'].destroy();
+    return;
+  }
+  const latest = filteredData[filteredData.length - 1];
+  const prev = filteredData.length > 1 ? filteredData[filteredData.length - 2] : null;
+  const isRange = filteredData.length > 1;
+  const props = toNum(latest['管理物件数']);
+  const unitPrice = toNum(latest['PM単価']);
+  const revenue = latest['PM売上'] ? toNum(latest['PM売上']) : props * unitPrice;
+  const pl = revenue * CONTRIBUTION_MARGIN - FIXED_COST;
+  const totalRevenue = filteredData.reduce((s, d) => s + (d['PM売上'] ? toNum(d['PM売上']) : toNum(d['管理物件数']) * toNum(d['PM単価'])), 0);
+  const totalPL = filteredData.reduce((s, d) => { const r = d['PM売上'] ? toNum(d['PM売上']) : toNum(d['管理物件数']) * toNum(d['PM単価']); return s + r * CONTRIBUTION_MARGIN - FIXED_COST; }, 0);
+  const avgUnitPrice = Math.round(filteredData.reduce((s, d) => s + toNum(d['PM単価']), 0) / filteredData.length);
+  const totalNewAdd = filteredData.reduce((s, d) => s + (toNum(d['新規追加件数']) || 0), 0);
+  const totalChurn = filteredData.reduce((s, d) => s + (toNum(d['解約件数']) || 0), 0);
+
+  document.getElementById('kpiPeriodNote').textContent = isRange ? `期末: ${latest['年月']}` : '';
+  document.getElementById('kpiProperties').textContent = `${props}件`;
+  document.getElementById('kpiPropertiesSub').textContent = isRange ? `期間計: 新規+${totalNewAdd} 解約-${totalChurn}` : `新規+${toNum(latest['新規追加件数'])||0} 解約-${toNum(latest['解約件数'])||0}`;
+  document.getElementById('kpiUnitPrice').textContent = formatYen(isRange ? avgUnitPrice : unitPrice);
+  if (prev) { const diff = unitPrice - toNum(prev['PM単価']); document.getElementById('kpiUnitPriceSub').textContent = `前月比 ${diff >= 0 ? '+' : ''}${formatYen(diff)}`; }
+  else { document.getElementById('kpiUnitPriceSub').textContent = isRange ? `${filteredData.length}ヶ月平均` : ''; }
+  // 前年比
+  const yoyEl = document.getElementById('kpiUnitPriceYoY');
+  const latestMonth = latest['年月'];
+  const [ly, lm] = latestMonth.split('-').map(Number);
+  const prevYearMonth = `${ly - 1}-${String(lm).padStart(2, '0')}`;
+  const prevYearData = allKpiData.find(d => d['年月'] === prevYearMonth);
+  if (prevYearData) {
+    const prevYearPrice = toNum(prevYearData['PM単価']);
+    const yoyDiff = (isRange ? avgUnitPrice : unitPrice) - prevYearPrice;
+    const yoyPct = prevYearPrice > 0 ? ((yoyDiff / prevYearPrice) * 100).toFixed(1) : '—';
+    yoyEl.textContent = `前年比 ${yoyDiff >= 0 ? '+' : ''}${formatYen(yoyDiff)}（${yoyDiff >= 0 ? '+' : ''}${yoyPct}%）`;
+    yoyEl.style.color = yoyDiff >= 0 ? '#34c759' : '#ff3b30';
+  } else { yoyEl.textContent = ''; }
+  document.getElementById('kpiRevenue').textContent = isRange ? formatYen(totalRevenue) : formatYen(revenue);
+  document.getElementById('kpiRevenueSub').textContent = isRange ? `${filteredData.length}ヶ月合計` : '物件数 × 単価';
+  const displayPL = isRange ? totalPL : pl;
+  document.getElementById('kpiPL').textContent = (displayPL >= 0 ? '+' : '') + formatYen(displayPL);
+  document.getElementById('kpiPLCard').className = `kpi-card ${displayPL >= 0 ? 'positive' : 'negative'}`;
+  document.getElementById('kpiPLSub').textContent = isRange ? `${filteredData.length}ヶ月合計` : (displayPL >= 0 ? '黒字' : '赤字');
+
+  document.getElementById('bepPeriodLabel').textContent = `（${latest['年月']}時点）`;
+  const maxVal = Math.max(revenue * 1.3, BEP * 1.2);
+  document.getElementById('bepBar').style.width = Math.min(revenue / maxVal * 100, 100).toFixed(1) + '%';
+  document.getElementById('bepBar').style.background = pl >= 0 ? '#34c759' : '#ff3b30';
+  document.getElementById('bepMarker').style.left = (BEP / maxVal * 100).toFixed(1) + '%';
+  document.getElementById('bepMaxLabel').textContent = formatYen(maxVal);
+  const bepProps = Math.ceil(BEP / (unitPrice || 1));
+  const cfBepProps = Math.ceil(CF_BEP / (unitPrice || 1));
+  document.getElementById('bepLabel').textContent = `PL分岐: ${formatYen(BEP)}（${bepProps}件）/ CF分岐: ${formatYen(CF_BEP)}（${cfBepProps}件）`;
+  const gap = revenue - BEP;
+  const cfGap = revenue - CF_BEP;
+  const gapProps = Math.ceil(Math.abs(gap) / (unitPrice || 1));
+  const cfGapProps = Math.ceil(Math.abs(cfGap) / (unitPrice || 1));
+  const statusEl = document.getElementById('bepStatus');
+  const plTag = pl >= 0
+    ? `<span class="scenario-tag tag-green">PL黒字</span>　余裕 ${formatYen(gap)}（${gapProps}件分）`
+    : `<span class="scenario-tag tag-red">PL赤字</span>　あと ${formatYen(Math.abs(gap))}（${gapProps}件）`;
+  const cfTag = cfGap >= 0
+    ? `<span class="scenario-tag tag-blue">CF+</span>　余裕 ${formatYen(cfGap)}（${cfGapProps}件分）`
+    : `<span class="scenario-tag tag-red">CF−</span>　あと ${formatYen(Math.abs(cfGap))}（${cfGapProps}件）`;
+  statusEl.innerHTML = plTag + '　　' + cfTag;
+
+  const labels = filteredData.map(d => d['年月']);
+  const propsData = filteredData.map(d => toNum(d['管理物件数']));
+  const revenueData = filteredData.map(d => d['PM売上'] ? toNum(d['PM売上']) : toNum(d['管理物件数']) * toNum(d['PM単価']));
+  renderChart('chartProperties', labels, [{ label: '管理物件数', data: propsData, borderColor: '#007aff', backgroundColor: 'rgba(0,122,255,0.1)', tension: 0.3, fill: true }], '件', false);
+  renderChart('chartRevenue', labels, [
+    { label: 'PM売上', data: revenueData, borderColor: '#34c759', backgroundColor: 'rgba(52,199,89,0.1)', tension: 0.3, fill: true },
+    { label: 'PL分岐点', data: filteredData.map(() => BEP), borderColor: '#ff9500', borderDash: [6,3], pointRadius: 0, borderWidth: 2 },
+    { label: 'CF分岐点（+返済44万）', data: filteredData.map(() => CF_BEP), borderColor: '#ff3b30', borderDash: [6,3], pointRadius: 0, borderWidth: 2 }
+  ], '円', true);
+}
+
+function loadDemo() {
+  allKpiData = [{ '年月': '2026-03', '管理物件数': '120', '新規追加件数': '0', '解約件数': '0', 'PM売上': '5549640', 'PM単価': '46247' }];
+  filteredData = [...allKpiData];
+  renderKPI();
+}
+
+// ==============================
+// 清掃内製化シミュレーション
+// ==============================
+function runSim() {
+  const currentOut = toNum(document.getElementById('simCurrentOut').value);
+  const rate = Number(document.getElementById('simRate').value) / 100;
+  const staffCost = toNum(document.getElementById('simStaffCost').value);
+  const otherCost = toNum(document.getElementById('simOtherCost').value);
+
+  document.getElementById('simRateLabel').textContent = Math.round(rate * 100) + '%';
+
+  const saving = Math.round(currentOut * rate);
+  const increase = staffCost + otherCost;
+  const net = saving - increase;
+  const newFixed = FIXED_COST - net;
+  const newBEP = Math.ceil(newFixed / (toNum(filteredData.length ? filteredData[filteredData.length-1]['PM単価'] : '46247') || 46247));
+
+  document.getElementById('simSaving').textContent = formatYen(saving);
+  document.getElementById('simIncrease').textContent = formatYen(increase);
+  document.getElementById('simNet').textContent = (net >= 0 ? '+' : '') + formatYen(net);
+  document.getElementById('simNetCard').className = `kpi-card ${net >= 0 ? 'positive' : 'negative'}`;
+  document.getElementById('simNetSub').textContent = net >= 0 ? `固定費 ${formatM(net)} 削減` : `固定費 ${formatM(Math.abs(net))} 増加`;
+  document.getElementById('simBEP').textContent = newBEP + '件';
+  const currentBEP = Math.ceil(BEP / (toNum(filteredData.length ? filteredData[filteredData.length-1]['PM単価'] : '46247') || 46247));
+  const bepDiff = currentBEP - newBEP;
+  document.getElementById('simBEPSub').textContent = bepDiff > 0 ? `現在${currentBEP}件 → ${bepDiff}件削減` : bepDiff < 0 ? `現在${currentBEP}件 → ${Math.abs(bepDiff)}件増加` : `現在と同じ`;
+}
+
+function updateSimArea() {
+  // エリア別のデフォルト外注費を設定（物件比率で按分）
+  // 全体532万を仮にエリア比率で分割
+  const areaRatios = { all: 1.0, osaka: 0.5, kyoto: 0.3, tokyo: 0.2 };
+  const area = document.getElementById('simArea').value;
+  const total = 5320000;
+  document.getElementById('simCurrentOut').value = Math.round(total * areaRatios[area]).toLocaleString();
+  runSim();
+}
+
+// ==============================
+// gviz PL/BS パーサー
+// ==============================
+function parseGvizPLBS(response) {
+  if (!response || response.status !== 'ok') return null;
+  const cols = response.table.cols || [];
+  const rows = response.table.rows || [];
+
+  // 方法1: colsラベルからYYYY-MMを検出
+  let months = [], monthColIdx = {};
+  cols.forEach((col, i) => {
+    const label = (col.label || '').trim();
+    if (/^\d{4}-\d{2}$/.test(label)) { months.push(label); monthColIdx[label] = i; }
+  });
+
+  // 方法2: colsに月がない場合、データ行から探す
+  if (months.length === 0) {
+    for (let ri = 0; ri < Math.min(rows.length, 5); ri++) {
+      const cells = rows[ri].c || [];
+      cells.forEach((cell, ci) => {
+        if (cell && cell.v != null) {
+          const v = String(cell.f || cell.v).trim();
+          if (/^\d{4}-\d{2}$/.test(v)) { months.push(v); monthColIdx[v] = ci; }
+        }
+      });
+      if (months.length > 0) { rows.splice(0, ri + 1); break; }
+    }
+  }
+  if (months.length === 0) return null;
+  months.sort();
+  const firstMonthCol = Math.min(...Object.values(monthColIdx));
+
+  const data = {};
+  rows.forEach(row => {
+    if (!row.c) return;
+    let label = '';
+    for (let ci = 0; ci < firstMonthCol; ci++) {
+      const cell = row.c[ci];
+      if (cell && cell.v != null) {
+        const v = String(cell.f || cell.v).trim();
+        if (v !== '') { label = v; break; }
+      }
+    }
+    if (!label) return;
+    // 「計」の前にスペースを正規化
+    label = label.replace(/([^\s])計$/, '$1 計');
+    data[label] = {};
+    months.forEach(m => {
+      const cell = row.c[monthColIdx[m]];
+      data[label][m] = cell && cell.v != null ? Math.round(Number(cell.v)) || 0 : 0;
+    });
+  });
+  return { months, data };
+}
+
+// ==============================
+// PL タブ
+// ==============================
+let plData = null;
+
+function loadPL(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    plData = parseFreeeCSV(e.target.result);
+    if (plData) {
+      document.getElementById('plLoaded').textContent = '読み込み済み';
+      renderPL();
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function loadPLFromSheets(gid) {
+  const s = document.createElement('script');
+  s.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler:_plCallback&gid=${gid}&headers=2`;
+  s.onerror = () => console.log('PL gviz failed, using embedded data');
+  document.head.appendChild(s);
+}
+window._plCallback = function(response) {
+  const parsed = parseGvizPLBS(response);
+  if (parsed && parsed.months.length >= 6) {
+    plData = parsed;
+    document.getElementById('plLoaded').textContent = 'スプシから自動取得済み';
+    renderPL();
+  }
+};
+
+let plFilteredMonths = null;
+
+function filterMonths(allMonths, from, to) {
+  return allMonths.filter(m => (!from || m >= from) && (!to || m <= to));
+}
+
+function applyPLFiscal(period) {
+  if (!plData) return;
+  const { from, to } = getFiscalYear(period === 'current' ? 0 : -1);
+  document.querySelectorAll('#tab-pl .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  plFilteredMonths = filterMonths(plData.months, from, to);
+  renderPL();
+}
+function applyPLPreset(n) {
+  if (!plData) return;
+  document.querySelectorAll('#tab-pl .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (n === 0) { plFilteredMonths = null; }
+  else {
+    const all = plData.months;
+    const last = all[all.length - 1];
+    const [y, m] = last.split('-').map(Number);
+    const cutoff = new Date(y, m - n, 1);
+    plFilteredMonths = all.filter(mo => { const [dy, dm] = mo.split('-').map(Number); return new Date(dy, dm - 1, 1) >= cutoff; });
+  }
+  renderPL();
+}
+function applyPLCustom() {
+  if (!plData) return;
+  const from = document.getElementById('plRangeFrom').value;
+  const to = document.getElementById('plRangeTo').value;
+  if (!from || !to) return;
+  document.querySelectorAll('#tab-pl .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  plFilteredMonths = filterMonths(plData.months, from, to);
+  renderPL();
+}
+
+function renderPL() {
+  if (!plData) return;
+  const months = plFilteredMonths || plData.months;
+  const { data } = plData;
+  const get = (label) => months.map(m => data[label]?.[m] || 0);
+  const sum = (label) => get(label).reduce((a, b) => a + b, 0);
+  const periodLabel = months.length > 1 ? `${months[0]}〜${months[months.length-1]}（${months.length}ヶ月）` : months[0];
+
+  const revTotal = sum('売上高 計');
+  const opTotal = sum('営業損益金額');
+  const ordTotal = sum('経常損益金額');
+  const netTotal = sum('当期純損益金額');
+
+  document.getElementById('plRevTotal').textContent = formatYen(revTotal);
+  document.getElementById('plRevSub').textContent = periodLabel;
+  document.getElementById('plOpTotal').textContent = (opTotal >= 0 ? '+' : '') + formatYen(opTotal);
+  document.getElementById('plOpCard').className = `kpi-card ${opTotal >= 0 ? 'positive' : 'negative'}`;
+  document.getElementById('plOpSub').textContent = `営業利益率 ${(opTotal / revTotal * 100).toFixed(1)}%`;
+  document.getElementById('plOrdTotal').textContent = (ordTotal >= 0 ? '+' : '') + formatYen(ordTotal);
+  document.getElementById('plOrdCard').className = `kpi-card ${ordTotal >= 0 ? 'positive' : 'negative'}`;
+  document.getElementById('plOrdSub').textContent = periodLabel;
+  document.getElementById('plNetTotal').textContent = (netTotal >= 0 ? '+' : '') + formatYen(netTotal);
+  document.getElementById('plNetCard').className = `kpi-card ${netTotal >= 0 ? 'positive' : 'negative'}`;
+  document.getElementById('plNetSub').textContent = periodLabel;
+
+  renderChart('chartPL', months, [
+    { label: '売上高', data: get('売上高 計'), borderColor: '#007aff', backgroundColor: 'rgba(0,122,255,0.08)', tension: 0.3, fill: true },
+    { label: '営業利益', data: get('営業損益金額'), borderColor: '#34c759', tension: 0.3, borderWidth: 2 },
+    { label: '経常利益', data: get('経常損益金額'), borderColor: '#ff9500', tension: 0.3 },
+    { label: 'CF分岐点（返済44万/月）', data: months.map(() => LOAN_REPAYMENT), borderColor: '#ff3b30', borderDash: [6,3], pointRadius: 0, borderWidth: 2 },
+  ], '円', true);
+
+  const costLabels = ['外注費', '地代家賃', '給料手当', '支払手数料', '広告宣伝費'];
+  const colors = ['#ff3b30','#ff9500','#007aff','#5856d6','#34c759'];
+  renderChart('chartCost', months, costLabels.map((label, i) => ({
+    label, data: get(label), borderColor: colors[i], backgroundColor: colors[i] + '20', tension: 0.3
+  })), '円', true);
+
+  renderChart('chartGP', months, [
+    { label: '売上総利益', data: get('売上総損益金額'), borderColor: '#007aff', backgroundColor: 'rgba(0,122,255,0.1)', tension: 0.3, fill: true },
+    { label: '販管費', data: get('販売管理費 計'), borderColor: '#ff3b30', backgroundColor: 'rgba(255,59,48,0.1)', tension: 0.3, fill: true },
+  ], '円', true);
+}
+
+// ==============================
+// BS タブ
+// ==============================
+let bsData = null;
+
+function loadBS(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    bsData = parseFreeeCSV(e.target.result);
+    if (bsData) {
+      document.getElementById('bsLoaded').textContent = '読み込み済み';
+      renderBS();
+      renderCF();
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function loadBSFromSheets(gid) {
+  const s = document.createElement('script');
+  s.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler:_bsCallback&gid=${gid}&headers=2`;
+  s.onerror = () => console.log('BS gviz failed, using embedded data');
+  document.head.appendChild(s);
+}
+window._bsCallback = function(response) {
+  const parsed = parseGvizPLBS(response);
+  if (parsed && parsed.months.length >= 6) {
+    bsData = parsed;
+    document.getElementById('bsLoaded').textContent = 'スプシから自動取得済み';
+    renderBS();
+    renderCF();
+  }
+};
+
+let bsFilteredMonths = null;
+
+function applyBSFiscal(period) {
+  if (!bsData) return;
+  const { from, to } = getFiscalYear(period === 'current' ? 0 : -1);
+  document.querySelectorAll('#tab-bs .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  bsFilteredMonths = filterMonths(bsData.months, from, to);
+  renderBS(); renderCF();
+}
+function applyBSPreset(n) {
+  if (!bsData) return;
+  document.querySelectorAll('#tab-bs .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (n === 0) { bsFilteredMonths = null; }
+  else {
+    const all = bsData.months;
+    const last = all[all.length - 1];
+    const [y, m] = last.split('-').map(Number);
+    const cutoff = new Date(y, m - n, 1);
+    bsFilteredMonths = all.filter(mo => { const [dy, dm] = mo.split('-').map(Number); return new Date(dy, dm - 1, 1) >= cutoff; });
+  }
+  renderBS(); renderCF();
+}
+function applyBSCustom() {
+  if (!bsData) return;
+  const from = document.getElementById('bsRangeFrom').value;
+  const to = document.getElementById('bsRangeTo').value;
+  if (!from || !to) return;
+  document.querySelectorAll('#tab-bs .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  bsFilteredMonths = filterMonths(bsData.months, from, to);
+  renderBS(); renderCF();
+}
+
+function getCashByMonth(data, months) {
+  const cashKeys = ['現金','みずほ（法人）（API）','住信ＳＢＩネット（法人）','大阪信用金庫','楽天（法人）（API）','ＰａｙＰａｙ銀行（API）'];
+  const result = months.map(m => cashKeys.reduce((s, k) => s + (data[k]?.[m] || 0), 0));
+  const gmoKey = Object.keys(data).find(k => k.includes('GMOあおぞら'));
+  if (gmoKey) months.forEach((m, mi) => result[mi] += (data[gmoKey]?.[m] || 0));
+  return result;
+}
+
+function renderBS() {
+  if (!bsData) return;
+  const months = bsFilteredMonths || bsData.months;
+  const { data } = bsData;
+  const get = (label) => months.map(m => data[label]?.[m] || 0);
+
+  const totalAsset = get('資産 計');
+  const totalLiab = get('負債 計');
+  const netAsset = get('純資産 計');
+  const cashByMonth = getCashByMonth(data, months);
+  const arArr = get('売掛金');
+  const lastM = months[months.length - 1];
+  const prevM = months.length > 1 ? months[months.length - 2] : lastM;
+
+  document.getElementById('bsTotalAsset').textContent = formatYen(data['資産 計']?.[lastM] || 0);
+  const assetDiff = (data['資産 計']?.[lastM] || 0) - (data['資産 計']?.[prevM] || 0);
+  document.getElementById('bsTotalAssetSub').textContent = months.length > 1 ? `前月比 ${assetDiff >= 0 ? '+' : ''}${formatM(assetDiff)}` : lastM + '末';
+  const netLast = data['純資産 計']?.[lastM] || 0;
+  document.getElementById('bsNetAsset').textContent = formatYen(netLast);
+  document.getElementById('bsNetCard').className = `kpi-card ${netLast >= 0 ? 'neutral' : 'negative'}`;
+  document.getElementById('bsNetAssetSub').textContent = lastM + '末時点';
+  document.getElementById('bsCash').textContent = formatYen(cashByMonth[cashByMonth.length - 1]);
+  document.getElementById('bsCashSub').textContent = lastM + '末時点';
+
+  renderChart('chartBS', months, [
+    { label: '総資産', data: totalAsset, borderColor: '#007aff', tension: 0.3 },
+    { label: '負債', data: totalLiab, borderColor: '#ff3b30', tension: 0.3 },
+    { label: '純資産', data: netAsset, borderColor: '#34c759', tension: 0.3 },
+  ], '円', true);
+
+  renderChart('chartCash', months, [
+    { label: '現金・預金合計', data: cashByMonth, borderColor: '#007aff', backgroundColor: 'rgba(0,122,255,0.1)', tension: 0.3, fill: true }
+  ], '円', true);
+
+  renderChart('chartAR', months, [
+    { label: '売掛金', data: arArr, borderColor: '#ff9500', backgroundColor: 'rgba(255,149,0,0.1)', tension: 0.3, fill: true }
+  ], '円', true);
+}
+
+// ==============================
+// CF タブ
+// ==============================
+let cfFilteredMonths = null;
+
+function applyCFFiscal(period) {
+  if (!bsData) return;
+  const { from, to } = getFiscalYear(period === 'current' ? 0 : -1);
+  document.querySelectorAll('#tab-cf .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  cfFilteredMonths = filterMonths(bsData.months, from, to);
+  renderCF();
+}
+function applyCFPreset(n) {
+  if (!bsData) return;
+  document.querySelectorAll('#tab-cf .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (n === 0) { cfFilteredMonths = null; }
+  else {
+    const all = bsData.months;
+    const last = all[all.length - 1];
+    const [y, m] = last.split('-').map(Number);
+    const cutoff = new Date(y, m - n, 1);
+    cfFilteredMonths = all.filter(mo => { const [dy, dm] = mo.split('-').map(Number); return new Date(dy, dm - 1, 1) >= cutoff; });
+  }
+  renderCF();
+}
+function applyCFCustom() {
+  if (!bsData) return;
+  const from = document.getElementById('cfRangeFrom').value;
+  const to = document.getElementById('cfRangeTo').value;
+  if (!from || !to) return;
+  document.querySelectorAll('#tab-cf .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  cfFilteredMonths = filterMonths(bsData.months, from, to);
+  renderCF();
+}
+
+function renderCF() {
+  if (!bsData) return;
+  const months = cfFilteredMonths || bsData.months;
+  const { data } = bsData;
+  const cashByMonth = getCashByMonth(data, months);
+
+  const cfStart = cashByMonth[0];
+  const cfEnd = cashByMonth[cashByMonth.length - 1];
+  const cfNet = cfEnd - cfStart;
+
+  document.getElementById('cfStart').textContent = formatYen(cfStart);
+  document.getElementById('cfStartSub').textContent = months[0];
+  document.getElementById('cfEnd').textContent = formatYen(cfEnd);
+  document.getElementById('cfEndSub').textContent = months[months.length - 1] + '末';
+  document.getElementById('cfNet').textContent = (cfNet >= 0 ? '+' : '') + formatYen(cfNet);
+  document.getElementById('cfNetCard').className = `kpi-card ${cfNet >= 0 ? 'positive' : 'negative'}`;
+  document.getElementById('cfNetSub').textContent = `${months.length}ヶ月間`;
+
+  const cfChanges = months.map((m, i) => i === 0 ? 0 : cashByMonth[i] - cashByMonth[i-1]);
+
+  renderChart('chartCF', months, [
+    { label: '現金・預金残高', data: cashByMonth, borderColor: '#007aff', backgroundColor: 'rgba(0,122,255,0.1)', tension: 0.3, fill: true }
+  ], '円', true);
+
+  if (charts['chartCFBar']) charts['chartCFBar'].destroy();
+  const ctx = document.getElementById('chartCFBar').getContext('2d');
+  charts['chartCFBar'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [{
+        label: '月次増減',
+        data: cfChanges,
+        backgroundColor: cfChanges.map(v => v >= 0 ? 'rgba(52,199,89,0.7)' : 'rgba(255,59,48,0.7)'),
+        borderColor: cfChanges.map(v => v >= 0 ? '#34c759' : '#ff3b30'),
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { ticks: { callback: v => '¥' + (v/10000).toFixed(0) + '万' } } }
+    }
+  });
+}
+
+// ==============================
+// チャート共通
+// ==============================
+let charts = {};
+function renderChart(id, labels, datasets, unit, isYen) {
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id).getContext('2d');
+  charts[id] = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: datasets.length > 1 } },
+      scales: { y: { ticks: { callback: v => isYen ? '¥' + (v/10000).toFixed(0) + '万' : v + unit } } }
+    }
+  });
+}
+
+// ==============================
+// 初期化
+// ==============================
+const SHEET_ID = '1QWQ8kFOAItcSjottk8SKtbOKFWmZR-tbSVaJPDEjTec';
+const KPI_GID = '1952224560';
+
+// ==============================
+// 仕訳分析タブ
+// ==============================
+let journalData = []; // [{date,account,category,vendor,item,dept,memo,note,desc,in,out,diff,balance}]
+let jFilteredData = [];
+
+function parseJournalRow(cols, row) {
+  return {
+    date: String(row.c?.[0]?.v || row.c?.[0]?.f || '').replace('Date(','').replace(')',''),
+    account: String(row.c?.[1]?.v || ''),
+    category: String(row.c?.[2]?.v || ''),
+    vendor: String(row.c?.[3]?.v || ''),
+    item: String(row.c?.[4]?.v || ''),
+    dept: String(row.c?.[5]?.v || ''),
+    memo: String(row.c?.[6]?.v || ''),
+    note: String(row.c?.[7]?.v || ''),
+    desc: String(row.c?.[8]?.v || ''),
+    in: Number(row.c?.[9]?.v) || 0,
+    out: Number(row.c?.[10]?.v) || 0,
+  };
+}
+
+function parseJournalCSVText(text) {
+  const lines = text.trim().split('\n');
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length < 11 || !cols[0]) continue;
+    rows.push({
+      date: cols[0], account: cols[1], category: cols[2], vendor: cols[3],
+      item: cols[4], dept: cols[5], memo: cols[6], note: cols[7], desc: cols[8],
+      in: toNum(cols[9]), out: toNum(cols[10]),
+    });
+  }
+  return rows;
+}
+
+function loadJournalCSV(input) {
+  const files = Array.from(input.files);
+  Promise.all(files.map(f => new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(parseJournalCSVText(e.target.result));
+    reader.readAsText(f, 'UTF-8');
+  }))).then(results => {
+    journalData = results.flat().sort((a,b) => a.date.localeCompare(b.date));
+    document.getElementById('jLoaded').textContent = `${journalData.length}件読み込み済み`;
+    applyJFiscalSilent('prev');
+  });
+}
+
+function loadJournalFromSheets(gid, label) {
+  const s = document.createElement('script');
+  const cb = '_jCallback_' + gid;
+  window[cb] = function(response) {
+    if (!response || response.status !== 'ok') return;
+    const rows = (response.table.rows || []).map(r => parseJournalRow(response.table.cols, r)).filter(r => r.date && r.category);
+    // 日付をYYYY-MM-DD形式に正規化
+    rows.forEach(r => {
+      if (r.date.match(/^Date\(/)) { const m = r.date.match(/(\d+),(\d+),(\d+)/); if(m) r.date = `${m[1]}-${String(Number(m[2])+1).padStart(2,'0')}-${m[3].padStart(2,'0')}`; }
+      if (r.date.match(/^\d{4}\/\d{1,2}\/\d{1,2}$/)) r.date = r.date.replace(/\//g,'-').replace(/-(\d)(?=-|$)/g,'-0$1');
+    });
+    journalData = journalData.concat(rows).sort((a,b) => a.date.localeCompare(b.date));
+    document.getElementById('jLoaded').textContent = `スプシから${journalData.length}件取得済み`;
+    applyJFiscalSilent('prev');
+  };
+  s.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler:${cb}&gid=${gid}&headers=1`;
+  s.onerror = () => console.log('CF journal gviz failed: ' + label);
+  document.head.appendChild(s);
+}
+
+function getJMonth(d) { return d.substring(0, 7); }
+
+function applyJFiscal(period) {
+  const { from, to } = getFiscalYear(period === 'current' ? 0 : -1);
+  document.querySelectorAll('#tab-journal .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  jFilteredData = journalData.filter(r => { const m = getJMonth(r.date); return m >= from && m <= to; });
+  renderJournal();
+}
+function applyJFiscalSilent(period) {
+  const { from, to } = getFiscalYear(period === 'current' ? 0 : -1);
+  jFilteredData = journalData.filter(r => { const m = getJMonth(r.date); return m >= from && m <= to; });
+  renderJournal();
+}
+function applyJPreset(n) {
+  document.querySelectorAll('#tab-journal .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (n === 0) { jFilteredData = [...journalData]; }
+  else {
+    const allMonths = [...new Set(journalData.map(r => getJMonth(r.date)))].sort();
+    if (!allMonths.length) return;
+    const last = allMonths[allMonths.length - 1];
+    const [y, m] = last.split('-').map(Number);
+    const cutoff = new Date(y, m - n, 1);
+    jFilteredData = journalData.filter(r => { const [dy, dm] = getJMonth(r.date).split('-').map(Number); return new Date(dy, dm - 1, 1) >= cutoff; });
+  }
+  renderJournal();
+}
+function applyJCustom() {
+  const from = document.getElementById('jRangeFrom').value;
+  const to = document.getElementById('jRangeTo').value;
+  if (!from || !to) return;
+  document.querySelectorAll('#tab-journal .period-presets .preset-btn').forEach(b => b.classList.remove('active'));
+  jFilteredData = journalData.filter(r => { const m = getJMonth(r.date); return m >= from && m <= to; });
+  renderJournal();
+}
+
+function renderJournal() {
+  if (!jFilteredData.length) {
+    ['jCount','jInTotal','jOutTotal','jAlertCount'].forEach(id => document.getElementById(id).textContent = '-');
+    return;
+  }
+  const data = jFilteredData;
+  const totalIn = data.reduce((s, r) => s + r.in, 0);
+  const totalOut = data.reduce((s, r) => s + r.out, 0);
+  const months = [...new Set(data.map(r => getJMonth(r.date)))].sort();
+
+  document.getElementById('jCount').textContent = data.length.toLocaleString() + '件';
+  document.getElementById('jCountSub').textContent = `${months.length}ヶ月分`;
+  document.getElementById('jInTotal').textContent = formatYen(totalIn);
+  document.getElementById('jInSub').textContent = `月平均 ${formatM(totalIn / months.length)}`;
+  document.getElementById('jOutTotal').textContent = formatYen(totalOut);
+  document.getElementById('jOutSub').textContent = `月平均 ${formatM(totalOut / months.length)}`;
+
+  // 科目別出金集計
+  const catTotals = {};
+  data.forEach(r => {
+    if (r.out <= 0) return;
+    // 複合仕訳の科目をスペース区切りで分解 → 最初の科目のみ
+    const cat = r.category.split(/\s+/)[0] || r.category;
+    catTotals[cat] = (catTotals[cat] || 0) + r.out;
+  });
+  const catSorted = Object.entries(catTotals).sort((a,b) => b[1] - a[1]);
+  const top10 = catSorted.slice(0, 10);
+
+  // 科目別 横棒グラフ
+  if (charts['chartJCategory']) charts['chartJCategory'].destroy();
+  charts['chartJCategory'] = new Chart(document.getElementById('chartJCategory').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: top10.map(e => e[0]),
+      datasets: [{ label: '出金額', data: top10.map(e => e[1]),
+        backgroundColor: 'rgba(255,59,48,0.7)', borderColor: '#ff3b30', borderWidth: 1 }]
+    },
+    options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } },
+      scales: { x: { ticks: { callback: v => formatM(v) } } } }
+  });
+
+  // 部門別 ドーナツ
+  const deptTotals = {};
+  data.forEach(r => {
+    if (r.out <= 0) return;
+    const dept = r.dept || '未分類';
+    deptTotals[dept] = (deptTotals[dept] || 0) + r.out;
+  });
+  const deptSorted = Object.entries(deptTotals).sort((a,b) => b[1] - a[1]);
+  const deptColors = ['#007aff','#ff3b30','#ff9500','#34c759','#5856d6','#af52de','#ff2d55','#999'];
+  if (charts['chartJDept']) charts['chartJDept'].destroy();
+  charts['chartJDept'] = new Chart(document.getElementById('chartJDept').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: deptSorted.map(e => e[0]),
+      datasets: [{ data: deptSorted.map(e => e[1]),
+        backgroundColor: deptSorted.map((_, i) => deptColors[i % deptColors.length]) }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'right' },
+      tooltip: { callbacks: { label: ctx => `${ctx.label}: ${formatYen(ctx.raw)}` } } } }
+  });
+
+  // 月次科目別出金推移（上位5科目）
+  const topCats = catSorted.slice(0, 5).map(e => e[0]);
+  const monthlyByCat = {};
+  topCats.forEach(cat => { monthlyByCat[cat] = {}; months.forEach(m => monthlyByCat[cat][m] = 0); });
+  data.forEach(r => {
+    if (r.out <= 0) return;
+    const cat = r.category.split(/\s+/)[0] || r.category;
+    const m = getJMonth(r.date);
+    if (monthlyByCat[cat] && monthlyByCat[cat][m] !== undefined) monthlyByCat[cat][m] += r.out;
+  });
+  const lineColors = ['#ff3b30','#ff9500','#007aff','#5856d6','#34c759'];
+  renderChart('chartJMonthly', months, topCats.map((cat, i) => ({
+    label: cat, data: months.map(m => monthlyByCat[cat][m]), borderColor: lineColors[i], tension: 0.3
+  })), '円', true);
+
+  // 異常値検出: 科目月次で月平均の2倍超の取引を検出
+  const catMonthTotals = {};
+  data.forEach(r => {
+    if (r.out <= 0) return;
+    const cat = r.category.split(/\s+/)[0];
+    const m = getJMonth(r.date);
+    const key = cat + '|' + m;
+    catMonthTotals[key] = (catMonthTotals[key] || 0) + r.out;
+  });
+  const catAvgs = {};
+  Object.entries(catTotals).forEach(([cat, total]) => { catAvgs[cat] = total / months.length; });
+  const alerts = [];
+  Object.entries(catMonthTotals).forEach(([key, total]) => {
+    const [cat, month] = key.split('|');
+    const avg = catAvgs[cat] || 0;
+    if (avg > 0 && total > avg * 2 && total > 100000) {
+      alerts.push({ cat, month, total, avg, ratio: total / avg });
+    }
+  });
+  alerts.sort((a, b) => b.ratio - a.ratio);
+
+  document.getElementById('jAlertCount').textContent = alerts.length + '件';
+  document.getElementById('jAlertCard').className = `kpi-card ${alerts.length > 0 ? 'negative' : 'positive'}`;
+
+  // 異常値テーブル
+  if (alerts.length > 0) {
+    let html = '<table style="width:100%;border-collapse:collapse;"><tr style="background:#f5f5f7;"><th style="padding:8px;text-align:left;">月</th><th style="text-align:left;">科目</th><th style="text-align:right;">当月額</th><th style="text-align:right;">月平均</th><th style="text-align:right;">倍率</th></tr>';
+    alerts.forEach(a => {
+      html += `<tr style="border-top:1px solid #eee;"><td style="padding:6px 8px;">${a.month}</td><td>${a.cat}</td><td style="text-align:right;">${formatYen(a.total)}</td><td style="text-align:right;">${formatYen(a.avg)}</td><td style="text-align:right;color:#ff3b30;font-weight:600;">${a.ratio.toFixed(1)}x</td></tr>`;
+    });
+    html += '</table>';
+    document.getElementById('jAlertTable').innerHTML = html;
+  } else {
+    document.getElementById('jAlertTable').innerHTML = '<div style="color:#34c759;padding:12px;">異常値なし</div>';
+  }
+}
+
+window._kpiCallback = window._kpiCallback; // 上で定義済み
+
+function loadKPIFromSheets() {
+  const statusEl = document.getElementById('kpiLoaded');
+  statusEl.textContent = '読み込み中...';
+  statusEl.style.color = '#999';
+  const s = document.createElement('script');
+  s.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=responseHandler:_kpiCallback&gid=${KPI_GID}`;
+  s.onerror = () => { statusEl.textContent = '取得失敗'; statusEl.style.color = '#ff3b30'; loadDemo(); };
+  document.head.appendChild(s);
+}
+
+loadKPIFromSheets();
+
+// FY2025 埋め込みデータで即時レンダリング
+plData = FY25_PL;
+bsData = FY25_BS;
+renderPL();
+renderBS();
+renderCF();
+
+// スプシから最新データを自動取得（成功したら上書き）
+loadPLFromSheets(PL_GIDS['2025']);
+loadBSFromSheets(BS_GIDS['2025']);
+
+// 仕訳明細をスプシから取得
+loadJournalFromSheets(CF_GIDS['2025'], 'CF_2025');
+loadJournalFromSheets(CF_GIDS['2026'], 'CF_2026');
+
+// --- パスワード保護 ---
+const HASH = 'ecaa06595a9350362b2bc2bb268574555017f7beeb7f25294d9ef5cf574da136';
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function tryLogin() {
+  const pw = document.getElementById('login-pw').value;
+  const hash = await sha256(pw);
+  if (hash === HASH) {
+    sessionStorage.setItem('dent_auth', '1');
+    document.getElementById('login-overlay').classList.add('hidden');
+    document.getElementById('app-content').classList.add('visible');
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('login-pw').value = '';
+  }
+}
+
+document.getElementById('login-pw').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+
+// セッション中は再入力不要
+if (sessionStorage.getItem('dent_auth') === '1') {
+  document.getElementById('login-overlay').classList.add('hidden');
+  document.getElementById('app-content').classList.add('visible');
+}
+</script>
+</div><!-- /app-content -->
+</body>
+</html>
