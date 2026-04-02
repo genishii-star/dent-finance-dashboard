@@ -553,8 +553,9 @@
             <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">リース費用</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="46750" oninput="calcBEP()"></td></tr>
             <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">福利厚生費</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="40000" oninput="calcBEP()"></td></tr>
             <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">支払報酬料</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="40000" oninput="calcBEP()"></td></tr>
-            <tr style="background:#f0f0f0;"><td style="padding:6px 8px;font-weight:600;">SGA固定 小計</td><td style="text-align:right;font-weight:600;" id="bepSgaTotal">¥2,926,750</td></tr>
-            <tr style="background:#ff3b3015;"><td style="padding:8px;font-weight:700;">固定費 合計</td><td style="text-align:right;font-weight:700;color:#ff3b30;font-size:16px;" id="bepFixedTotal">¥4,364,250</td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:4px 8px;">広告宣伝費</td><td style="text-align:right;"><input type="number" class="bep-input" data-group="sga" value="300000" oninput="calcBEP()"></td></tr>
+            <tr style="background:#f0f0f0;"><td style="padding:6px 8px;font-weight:600;">SGA固定 小計</td><td style="text-align:right;font-weight:600;" id="bepSgaTotal">¥3,226,750</td></tr>
+            <tr style="background:#ff3b3015;"><td style="padding:8px;font-weight:700;">固定費 合計</td><td style="text-align:right;font-weight:700;color:#ff3b30;font-size:16px;" id="bepFixedTotal">¥4,664,250</td></tr>
           </table>
           <div style="margin-top:8px;font-size:12px;color:#999;">
             借入返済: <input type="number" class="bep-input" id="bepLoan" value="440000" oninput="calcBEP()" style="width:90px;">/月
@@ -602,7 +603,7 @@
       <h2 style="margin-bottom:12px;">前提・注記</h2>
       <ul style="font-size:13px;color:#666;line-height:2;padding-left:20px;">
         <li>COGS固定の人件費（沼倉・バイトCS）は段階増（200物件超で増員）</li>
-        <li>広告宣伝費・決算賞与・採用費は現在ゼロで計算に含まず</li>
+        <li>広告宣伝費30万円/月を固定費に計上。決算賞与・採用費は現在ゼロで計算に含まず</li>
         <li>前期（2025-03〜2026-02）はGMVベース計上。今期からPM/BM分離計上</li>
         <li>PM単価¥30,000は万博バブル排除の保守的前提。実績は毎月見直し</li>
         <li>ソース: <a href="https://docs.google.com/spreadsheets/d/1QWQ8kFOAItcSjottk8SKtbOKFWmZR-tbSVaJPDEjTec/edit?gid=941890587" target="_blank" style="color:#007aff;">BEPシート</a></li>
@@ -699,14 +700,14 @@
 // 定数
 // ==============================
 // BEPシート準拠（2026-04検証）
-// 固定費: COGS固定143.75万 + SGA固定292.68万 = 436.4万/月
+// 固定費: COGS固定143.75万 + SGA固定322.68万 = 466.4万/月（広告宣伝費30万含む）
 // 変動費/部屋: 管理ソフト2% + SW2% + BM原価90% = 38,800円
 // PM単価: 30,000円（保守的前提、万博バブル排除）→ 毎月見直し
-const FIXED_COST = 4364250;
+const FIXED_COST = 4664250;
 const CONTRIBUTION_PER_UNIT = 31200;  // (PM30k+BM40k) - 変動費38.8k
-const BEP_UNITS = Math.ceil(FIXED_COST / CONTRIBUTION_PER_UNIT);  // 140件
+const BEP_UNITS = Math.ceil(FIXED_COST / CONTRIBUTION_PER_UNIT);  // 150件
 const LOAN_REPAYMENT = 440000;
-const CF_BEP_UNITS = Math.ceil((FIXED_COST + LOAN_REPAYMENT) / CONTRIBUTION_PER_UNIT);  // 154件
+const CF_BEP_UNITS = Math.ceil((FIXED_COST + LOAN_REPAYMENT) / CONTRIBUTION_PER_UNIT);  // 164件
 
 // ==============================
 // FY2025 PL・BSデータ（freee確定値）
