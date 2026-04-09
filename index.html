@@ -506,7 +506,13 @@
 
   <!-- 今月リアルタイムBEP判定 -->
   <div class="bep-realtime" id="bepRealtimeSection" style="display:none;">
-    <h2><span class="live-dot"></span> <span id="bepRtMonth">4月</span> リアルタイム損益分岐判定</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <h2 style="margin-bottom:0;"><span class="live-dot"></span> <span id="bepRtMonth">4月</span> 損益分岐判定</h2>
+      <div class="period-presets" id="bepRtPeriodFilter">
+        <button class="preset-btn" onclick="switchBepRtPeriod('prev')">前月</button>
+        <button class="preset-btn active" onclick="switchBepRtPeriod('current')">今月</button>
+      </div>
+    </div>
     <div class="bep-detail-grid">
       <div class="bep-detail-item">
         <div class="dl">PM売上（実績）</div>
@@ -1053,6 +1059,20 @@ function opParseNum(s) {
 function opNormDate(s) { return s ? String(s).replace(/\//g, '-').trim() : ''; }
 function opYM(d) { const s = opNormDate(d); return s.length >= 7 ? s.substring(0, 7) : ''; }
 
+let _bepRtCache = null; // { resvRaw, propMap }
+let _bepRtPeriod = 'current';
+
+function switchBepRtPeriod(period) {
+  _bepRtPeriod = period;
+  document.querySelectorAll('#bepRtPeriodFilter .preset-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (_bepRtCache) {
+    renderBepRtData(_bepRtCache.resvRaw, _bepRtCache.propMap);
+  } else {
+    loadRealtimeBEP();
+  }
+}
+
 async function loadRealtimeBEP() {
   const section = document.getElementById('bepRealtimeSection');
   try {
@@ -1080,111 +1100,116 @@ async function loadRealtimeBEP() {
       propMap[code] = { royaltyPct: ow.pct || 0 };
     });
 
-    const now = new Date();
-    const thisYM = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-
-    let pmSales = 0, bmSales = 0, resvCount = 0;
-    resvRaw.forEach(r => {
-      const status = r['状態'] || '';
-      if (status === 'システムキャンセル' || status === 'キャンセル') return;
-
-      const checkinYM = opYM(r['チェックイン']);
-      const checkoutYM = opYM(r['チェックアウト']);
-
-      if (checkinYM === thisYM) {
-        resvCount++;
-        const propName = r['物件名'] || '';
-        const roomNum = r['部屋番号'] || '';
-        let propCode = propName;
-        const concat = propName + roomNum;
-        if (propMap[concat]) propCode = concat;
-
-        const prop = propMap[propCode];
-        if (prop && prop.royaltyPct > 0) {
-          const sale = opParseNum(r['販売']);
-          const otaFee = opParseNum(r['OTA サービス料']);
-          const cleanFee = opParseNum(r['クリーニング代']);
-          const base = sale - otaFee - cleanFee;
-          pmSales += base * (prop.royaltyPct / 100);
-        }
-      }
-
-      if (checkoutYM === thisYM) {
-        bmSales += opParseNum(r['クリーニング代']);
-      }
-    });
-
-    pmSales = Math.round(pmSales);
-    bmSales = Math.round(bmSales);
-
-    // BEP設定値を読み取り
-    const r1 = Number(document.getElementById('bepSoftRate1').value) / 100;
-    const r2 = Number(document.getElementById('bepSoftRate2').value) / 100;
-    const bmRate = Number(document.getElementById('bepBMRate').value) / 100;
-    const loan = Number(document.getElementById('bepLoan').value) || 0;
-
-    let fixedTotal = 0;
-    document.querySelectorAll('#bepFixedTable .bep-input[data-group="cogs"]').forEach(el => fixedTotal += Number(el.value) || 0);
-    document.querySelectorAll('#bepFixedTable .bep-input[data-group="sga"]').forEach(el => fixedTotal += Number(el.value) || 0);
-
-    // BM限界利益 = 実績BM × (1 - BM原価率 - ソフト按分率)
-    const bmContribRate = 1 - bmRate - r1 - r2;
-    const bmContrib = Math.round(bmSales * bmContribRate);
-
-    // PM分岐売上 = (固定費 - BM限界利益) ÷ PM限界利益率
-    // PM限界利益率 = 1 - r1 - r2（ソフト費用のみ）
-    const pmContribRate = 1 - r1 - r2;
-    const plPmTarget = pmContribRate > 0 ? Math.round((fixedTotal - bmContrib) / pmContribRate) : 0;
-    const cfPmTarget = pmContribRate > 0 ? Math.round((fixedTotal + loan - bmContrib) / pmContribRate) : 0;
-
-    const fmtY = n => '¥' + Math.round(n).toLocaleString();
-    const monthLabel = (now.getMonth() + 1) + '月';
-    document.getElementById('bepRtMonth').textContent = monthLabel;
-    document.getElementById('bepRtPm').textContent = fmtY(pmSales);
-    document.getElementById('bepRtPmSub').textContent = resvCount + '件の予約';
-    document.getElementById('bepRtPlTarget').textContent = fmtY(plPmTarget);
-    document.getElementById('bepRtPlTargetSub').textContent = `固定費${fmtY(fixedTotal)} − BM利益${fmtY(bmContrib)}`;
-    document.getElementById('bepRtCfTarget').textContent = fmtY(cfPmTarget);
-    document.getElementById('bepRtCfTargetSub').textContent = `+借入返済${fmtY(loan)}`;
-    document.getElementById('bepRtBm').textContent = fmtY(bmSales);
-    document.getElementById('bepRtBmContrib').textContent = fmtY(bmContrib);
-    document.getElementById('bepRtBmContribSub').textContent = `利益率 ${(bmContribRate * 100).toFixed(1)}%`;
-
-    // ゲージ（PM売上 vs PM分岐）
-    const gaugeMax = Math.max(cfPmTarget * 1.3, pmSales * 1.1);
-    const fillPct = Math.min(100, (pmSales / gaugeMax) * 100);
-    const plPct = Math.min(100, (plPmTarget / gaugeMax) * 100);
-    const cfPct = Math.min(100, (cfPmTarget / gaugeMax) * 100);
-
-    const fillEl = document.getElementById('bepGaugeFill');
-    fillEl.style.width = fillPct + '%';
-    fillEl.style.background = pmSales >= cfPmTarget ? '#34c759' : pmSales >= plPmTarget ? '#ff9500' : '#ff3b30';
-
-    document.getElementById('bepGaugePL').style.left = plPct + '%';
-    document.getElementById('bepGaugeCF').style.left = cfPct + '%';
-    document.getElementById('bepGaugeMax').textContent = fmtY(gaugeMax);
-
-    const verdict = document.getElementById('bepRtVerdict');
-    if (pmSales >= cfPmTarget) {
-      verdict.style.background = '#34c75920';
-      verdict.style.color = '#34c759';
-      verdict.textContent = `CF損益分岐クリア（+${fmtY(pmSales - cfPmTarget)}）`;
-    } else if (pmSales >= plPmTarget) {
-      verdict.style.background = '#ff950020';
-      verdict.style.color = '#ff9500';
-      verdict.textContent = `PL黒字 / CFまであと ${fmtY(cfPmTarget - pmSales)}`;
-    } else {
-      verdict.style.background = '#ff3b3020';
-      verdict.style.color = '#ff3b30';
-      verdict.textContent = `PL分岐まであと ${fmtY(plPmTarget - pmSales)}`;
-    }
-
-    document.getElementById('bepRtTimestamp').textContent = '実績取得: ' + new Date().toLocaleString('ja-JP');
-    section.style.display = 'block';
+    _bepRtCache = { resvRaw, propMap };
+    renderBepRtData(resvRaw, propMap);
   } catch (e) {
     console.error('リアルタイムBEP取得エラー:', e);
     section.style.display = 'none';
   }
+}
+
+function renderBepRtData(resvRaw, propMap) {
+  const section = document.getElementById('bepRealtimeSection');
+  const now = new Date();
+  let targetDate = new Date(now);
+  if (_bepRtPeriod === 'prev') {
+    targetDate.setMonth(targetDate.getMonth() - 1);
+  }
+  const targetYM = targetDate.getFullYear() + '-' + String(targetDate.getMonth() + 1).padStart(2, '0');
+
+  let pmSales = 0, bmSales = 0, resvCount = 0;
+  resvRaw.forEach(r => {
+    const status = r['状態'] || '';
+    if (status === 'システムキャンセル' || status === 'キャンセル') return;
+
+    const checkinYM = opYM(r['チェックイン']);
+    const checkoutYM = opYM(r['チェックアウト']);
+
+    if (checkinYM === targetYM) {
+      resvCount++;
+      const propName = r['物件名'] || '';
+      const roomNum = r['部屋番号'] || '';
+      let propCode = propName;
+      const concat = propName + roomNum;
+      if (propMap[concat]) propCode = concat;
+
+      const prop = propMap[propCode];
+      if (prop && prop.royaltyPct > 0) {
+        const sale = opParseNum(r['販売']);
+        const otaFee = opParseNum(r['OTA サービス料']);
+        const cleanFee = opParseNum(r['クリーニング代']);
+        const base = sale - otaFee - cleanFee;
+        pmSales += base * (prop.royaltyPct / 100);
+      }
+    }
+
+    if (checkoutYM === targetYM) {
+      bmSales += opParseNum(r['クリーニング代']);
+    }
+  });
+
+  pmSales = Math.round(pmSales);
+  bmSales = Math.round(bmSales);
+
+  const r1 = Number(document.getElementById('bepSoftRate1').value) / 100;
+  const r2 = Number(document.getElementById('bepSoftRate2').value) / 100;
+  const bmRate = Number(document.getElementById('bepBMRate').value) / 100;
+  const loan = Number(document.getElementById('bepLoan').value) || 0;
+
+  let fixedTotal = 0;
+  document.querySelectorAll('#bepFixedTable .bep-input[data-group="cogs"]').forEach(el => fixedTotal += Number(el.value) || 0);
+  document.querySelectorAll('#bepFixedTable .bep-input[data-group="sga"]').forEach(el => fixedTotal += Number(el.value) || 0);
+
+  const bmContribRate = 1 - bmRate - r1 - r2;
+  const bmContrib = Math.round(bmSales * bmContribRate);
+  const pmContribRate = 1 - r1 - r2;
+  const plPmTarget = pmContribRate > 0 ? Math.round((fixedTotal - bmContrib) / pmContribRate) : 0;
+  const cfPmTarget = pmContribRate > 0 ? Math.round((fixedTotal + loan - bmContrib) / pmContribRate) : 0;
+
+  const fmtY = n => '¥' + Math.round(n).toLocaleString();
+  const monthLabel = (targetDate.getMonth() + 1) + '月';
+  const periodLabel = _bepRtPeriod === 'prev' ? '（確定）' : '';
+  document.getElementById('bepRtMonth').textContent = monthLabel + periodLabel;
+  document.getElementById('bepRtPm').textContent = fmtY(pmSales);
+  document.getElementById('bepRtPmSub').textContent = resvCount + '件の予約';
+  document.getElementById('bepRtPlTarget').textContent = fmtY(plPmTarget);
+  document.getElementById('bepRtPlTargetSub').textContent = `固定費${fmtY(fixedTotal)} − BM利益${fmtY(bmContrib)}`;
+  document.getElementById('bepRtCfTarget').textContent = fmtY(cfPmTarget);
+  document.getElementById('bepRtCfTargetSub').textContent = `+借入返済${fmtY(loan)}`;
+  document.getElementById('bepRtBm').textContent = fmtY(bmSales);
+  document.getElementById('bepRtBmContrib').textContent = fmtY(bmContrib);
+  document.getElementById('bepRtBmContribSub').textContent = `利益率 ${(bmContribRate * 100).toFixed(1)}%`;
+
+  const gaugeMax = Math.max(cfPmTarget * 1.3, pmSales * 1.1);
+  const fillPct = Math.min(100, (pmSales / gaugeMax) * 100);
+  const plPct = Math.min(100, (plPmTarget / gaugeMax) * 100);
+  const cfPct = Math.min(100, (cfPmTarget / gaugeMax) * 100);
+
+  const fillEl = document.getElementById('bepGaugeFill');
+  fillEl.style.width = fillPct + '%';
+  fillEl.style.background = pmSales >= cfPmTarget ? '#34c759' : pmSales >= plPmTarget ? '#ff9500' : '#ff3b30';
+
+  document.getElementById('bepGaugePL').style.left = plPct + '%';
+  document.getElementById('bepGaugeCF').style.left = cfPct + '%';
+  document.getElementById('bepGaugeMax').textContent = fmtY(gaugeMax);
+
+  const verdict = document.getElementById('bepRtVerdict');
+  if (pmSales >= cfPmTarget) {
+    verdict.style.background = '#34c75920';
+    verdict.style.color = '#34c759';
+    verdict.textContent = `CF損益分岐クリア（+${fmtY(pmSales - cfPmTarget)}）`;
+  } else if (pmSales >= plPmTarget) {
+    verdict.style.background = '#ff950020';
+    verdict.style.color = '#ff9500';
+    verdict.textContent = `PL黒字 / CFまであと ${fmtY(cfPmTarget - pmSales)}`;
+  } else {
+    verdict.style.background = '#ff3b3020';
+    verdict.style.color = '#ff3b30';
+    verdict.textContent = `PL分岐まであと ${fmtY(plPmTarget - pmSales)}`;
+  }
+
+  document.getElementById('bepRtTimestamp').textContent = '実績取得: ' + new Date().toLocaleString('ja-JP');
+  section.style.display = 'block';
 }
 
 // CSVパーサー（クォート対応）
