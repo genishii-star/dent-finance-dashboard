@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dent Inc. 財務ダッシュボード</title>
+  <link rel="icon" type="image/svg+xml" href="dashboard/favicon.svg">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -97,6 +98,21 @@
     .bep-input:focus { outline: none; border-color: #007aff; background: white; box-shadow: 0 0 0 2px rgba(0,122,255,0.15); }
     .bep-input-sm { width: 45px; padding: 2px 4px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px; text-align: center; background: #fafafa; }
     .bep-input-sm:focus { outline: none; border-color: #007aff; background: white; }
+
+    /* BEPリアルタイム */
+    .bep-realtime { background: white; border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 2px solid #007aff; }
+    .bep-realtime h2 { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .bep-realtime .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #34c759; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .bep-gauge { position: relative; height: 32px; background: #f0f0f0; border-radius: 16px; overflow: hidden; margin: 16px 0 8px; }
+    .bep-gauge-fill { height: 100%; border-radius: 16px; transition: width 0.8s ease; }
+    .bep-gauge-marker { position: absolute; top: -4px; bottom: -4px; width: 3px; background: #1d1d1f; border-radius: 2px; z-index: 2; }
+    .bep-gauge-label { position: absolute; top: -20px; font-size: 11px; font-weight: 600; transform: translateX(-50%); white-space: nowrap; }
+    .bep-detail-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 16px; }
+    .bep-detail-item { text-align: center; }
+    .bep-detail-item .dl { font-size: 11px; color: #666; margin-bottom: 4px; }
+    .bep-detail-item .dv { font-size: 18px; font-weight: 700; }
+    .bep-detail-item .ds { font-size: 11px; color: #999; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -477,6 +493,49 @@
 
   <div class="notice">BEPシート準拠（2026-04検証）。数値を編集するとBEPがリアルタイムで再計算されます。毎月PLと突合して見直すこと。</div>
 
+  <!-- 今月リアルタイムBEP判定 -->
+  <div class="bep-realtime" id="bepRealtimeSection" style="display:none;">
+    <h2><span class="live-dot"></span> <span id="bepRtMonth">4月</span> リアルタイム損益分岐判定</h2>
+    <div class="bep-detail-grid">
+      <div class="bep-detail-item">
+        <div class="dl">PM売上（実績）</div>
+        <div class="dv" id="bepRtPm">-</div>
+        <div class="ds" id="bepRtPmSub">-</div>
+      </div>
+      <div class="bep-detail-item">
+        <div class="dl">BM売上（実績）</div>
+        <div class="dv" id="bepRtBm">-</div>
+        <div class="ds" id="bepRtBmSub">-</div>
+      </div>
+      <div class="bep-detail-item">
+        <div class="dl">売上合計</div>
+        <div class="dv" id="bepRtTotal">-</div>
+        <div class="ds" id="bepRtTotalSub">-</div>
+      </div>
+      <div class="bep-detail-item">
+        <div class="dl">PL分岐売上</div>
+        <div class="dv" id="bepRtPlTarget" style="color:#ff9500;">-</div>
+        <div class="ds">固定費 ÷ 限界利益率</div>
+      </div>
+      <div class="bep-detail-item">
+        <div class="dl">CF分岐売上</div>
+        <div class="dv" id="bepRtCfTarget" style="color:#ff3b30;">-</div>
+        <div class="ds">（固定費+返済） ÷ 限界利益率</div>
+      </div>
+    </div>
+    <div class="bep-gauge" id="bepGauge">
+      <div class="bep-gauge-fill" id="bepGaugeFill" style="width:0%;background:#34c759;"></div>
+      <div class="bep-gauge-marker" id="bepGaugePL" style="left:70%;"><div class="bep-gauge-label" style="color:#ff9500;">PL</div></div>
+      <div class="bep-gauge-marker" id="bepGaugeCF" style="left:85%;"><div class="bep-gauge-label" style="color:#ff3b30;">CF</div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:#999;">
+      <span>¥0</span>
+      <span id="bepGaugeMax">-</span>
+    </div>
+    <div id="bepRtVerdict" style="margin-top:16px;padding:16px;border-radius:12px;text-align:center;font-size:18px;font-weight:700;"></div>
+    <div style="margin-top:8px;font-size:11px;color:#999;text-align:right;" id="bepRtTimestamp">-</div>
+  </div>
+
   <div class="kpi-grid">
     <div class="kpi-card positive">
       <div class="label">PL分岐点</div>
@@ -791,7 +850,7 @@ function switchTab(name) {
   if (name === 'bep') renderBEP();
 }
 
-function renderBEP() { calcBEP(); }
+function renderBEP() { calcBEP(); loadRealtimeBEP(); }
 
 function calcBEP() {
   const pm = Number(document.getElementById('bepPM').value) || 0;
@@ -859,6 +918,171 @@ function calcBEP() {
     html += `<tr${style}><td style="padding:8px;">¥${p.toLocaleString()}${isCur ? ' (現在)' : p === 46247 ? ' (前期実績)' : ''}</td><td style="padding:8px;">¥${r.toLocaleString()}</td><td style="padding:8px;">¥${v.toLocaleString()}</td><td style="padding:8px;">¥${c.toLocaleString()}</td><td style="padding:8px;color:#ff9500;font-weight:600;">${pl}件</td><td style="padding:8px;color:#ff3b30;font-weight:600;">${cf}件</td></tr>`;
   });
   document.getElementById('bepSensitivityTable').innerHTML = html;
+}
+
+// ============================================================
+// リアルタイムBEP判定（operationのSpreadsheet APIから実績取得）
+// ============================================================
+const OP_SHEET_ID = '1C7EiYSz-3ohjTy3Ul5zdgqL8cDk24jPj3ySTsAcOPhA';
+const OP_API_KEY = 'AIzaSyD_16gkzGw68S4socdFAr5HtIieisPA3uk';
+
+function opSheetUrl(name) {
+  return `https://sheets.googleapis.com/v4/spreadsheets/${OP_SHEET_ID}/values/${encodeURIComponent(name)}?key=${OP_API_KEY}`;
+}
+
+async function fetchOpSheet(name) {
+  const resp = await fetch(opSheetUrl(name));
+  if (!resp.ok) throw new Error(`Sheet ${name}: ${resp.status}`);
+  const json = await resp.json();
+  const rows = json.values;
+  if (!rows || rows.length < 2) return [];
+  const headers = rows[0];
+  return rows.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
+    return obj;
+  });
+}
+
+function opParseNum(s) {
+  if (!s) return 0;
+  return parseFloat(String(s).replace(/[,¥￥\s]/g, '')) || 0;
+}
+
+function opNormDate(s) { return s ? String(s).replace(/\//g, '-').trim() : ''; }
+function opYM(d) { const s = opNormDate(d); return s.length >= 7 ? s.substring(0, 7) : ''; }
+
+async function loadRealtimeBEP() {
+  const section = document.getElementById('bepRealtimeSection');
+  try {
+    const [resvRaw, propRaw, ownRaw] = await Promise.all([
+      fetchOpSheet('予約データ'),
+      fetchOpSheet('物件マスタ'),
+      fetchOpSheet('オーナーマスタ'),
+    ]);
+
+    const ownerMap = {};
+    ownRaw.forEach(om => {
+      const id = om['オーナーID'] || '';
+      const overrideText = om['計算用ロイヤリティ'] || '';
+      const royaltyText = om['ロイヤリティ'] || '';
+      let pct = opParseNum(overrideText);
+      if (!pct) pct = opParseNum(royaltyText);
+      ownerMap[id] = { pct };
+    });
+
+    const propMap = {};
+    propRaw.forEach(pm => {
+      const code = pm['物件コード'] || '';
+      const ownerId = pm['オーナーID'] || '';
+      const ow = ownerMap[ownerId] || {};
+      propMap[code] = { royaltyPct: ow.pct || 0 };
+    });
+
+    const now = new Date();
+    const thisYM = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+
+    let pmSales = 0, bmSales = 0, resvCount = 0;
+    resvRaw.forEach(r => {
+      const status = r['状態'] || '';
+      if (status === 'システムキャンセル' || status === 'キャンセル') return;
+
+      const checkinYM = opYM(r['チェックイン']);
+      const checkoutYM = opYM(r['チェックアウト']);
+
+      if (checkinYM === thisYM) {
+        resvCount++;
+        const propName = r['物件名'] || '';
+        const roomNum = r['部屋番号'] || '';
+        let propCode = propName;
+        const concat = propName + roomNum;
+        if (propMap[concat]) propCode = concat;
+
+        const prop = propMap[propCode];
+        if (prop && prop.royaltyPct > 0) {
+          const sale = opParseNum(r['販売']);
+          const otaFee = opParseNum(r['OTA サービス料']);
+          const cleanFee = opParseNum(r['クリーニング代']);
+          const base = sale - otaFee - cleanFee;
+          pmSales += base * (prop.royaltyPct / 100);
+        }
+      }
+
+      if (checkoutYM === thisYM) {
+        bmSales += opParseNum(r['クリーニング代']);
+      }
+    });
+
+    pmSales = Math.round(pmSales);
+    bmSales = Math.round(bmSales);
+    const totalSales = pmSales + bmSales;
+
+    const bepPM = Number(document.getElementById('bepPM').value) || 30000;
+    const bepBM = Number(document.getElementById('bepBM').value) || 40000;
+    const r1 = Number(document.getElementById('bepSoftRate1').value) / 100;
+    const r2 = Number(document.getElementById('bepSoftRate2').value) / 100;
+    const bmRate = Number(document.getElementById('bepBMRate').value) / 100;
+    const loan = Number(document.getElementById('bepLoan').value) || 0;
+    const revPerUnit = bepPM + bepBM;
+    const varPerUnit = Math.round(revPerUnit * r1) + Math.round(revPerUnit * r2) + Math.round(bepBM * bmRate);
+    const contribRate = revPerUnit > 0 ? (revPerUnit - varPerUnit) / revPerUnit : 0;
+
+    let fixedTotal = 0;
+    document.querySelectorAll('#bepFixedTable .bep-input[data-group="cogs"]').forEach(el => fixedTotal += Number(el.value) || 0);
+    document.querySelectorAll('#bepFixedTable .bep-input[data-group="sga"]').forEach(el => fixedTotal += Number(el.value) || 0);
+
+    const plTargetSales = contribRate > 0 ? Math.round(fixedTotal / contribRate) : 0;
+    const cfTargetSales = contribRate > 0 ? Math.round((fixedTotal + loan) / contribRate) : 0;
+
+    const fmtY = n => '¥' + Math.round(n).toLocaleString();
+    const monthLabel = (now.getMonth() + 1) + '月';
+    document.getElementById('bepRtMonth').textContent = monthLabel;
+    document.getElementById('bepRtPm').textContent = fmtY(pmSales);
+    document.getElementById('bepRtPmSub').textContent = resvCount + '件の予約';
+    document.getElementById('bepRtBm').textContent = fmtY(bmSales);
+    document.getElementById('bepRtBmSub').textContent = '清掃代行売上';
+    document.getElementById('bepRtTotal').textContent = fmtY(totalSales);
+    document.getElementById('bepRtTotalSub').textContent = 'PM + BM';
+    document.getElementById('bepRtPlTarget').textContent = fmtY(plTargetSales);
+    document.getElementById('bepRtCfTarget').textContent = fmtY(cfTargetSales);
+
+    const gaugeMax = Math.max(cfTargetSales * 1.3, totalSales * 1.1);
+    const fillPct = Math.min(100, (totalSales / gaugeMax) * 100);
+    const plPct = Math.min(100, (plTargetSales / gaugeMax) * 100);
+    const cfPct = Math.min(100, (cfTargetSales / gaugeMax) * 100);
+
+    const fillEl = document.getElementById('bepGaugeFill');
+    fillEl.style.width = fillPct + '%';
+    fillEl.style.background = totalSales >= cfTargetSales ? '#34c759' : totalSales >= plTargetSales ? '#ff9500' : '#ff3b30';
+
+    document.getElementById('bepGaugePL').style.left = plPct + '%';
+    document.getElementById('bepGaugeCF').style.left = cfPct + '%';
+    document.getElementById('bepGaugeMax').textContent = fmtY(gaugeMax);
+
+    const verdict = document.getElementById('bepRtVerdict');
+    if (totalSales >= cfTargetSales) {
+      verdict.style.background = '#34c75920';
+      verdict.style.color = '#34c759';
+      const surplus = totalSales - cfTargetSales;
+      verdict.textContent = `CF損益分岐クリア（+${fmtY(surplus)}）`;
+    } else if (totalSales >= plTargetSales) {
+      verdict.style.background = '#ff950020';
+      verdict.style.color = '#ff9500';
+      const toGo = cfTargetSales - totalSales;
+      verdict.textContent = `PL黒字 / CFまであと ${fmtY(toGo)}`;
+    } else {
+      verdict.style.background = '#ff3b3020';
+      verdict.style.color = '#ff3b30';
+      const toGo = plTargetSales - totalSales;
+      verdict.textContent = `PL分岐まであと ${fmtY(toGo)}`;
+    }
+
+    document.getElementById('bepRtTimestamp').textContent = '実績取得: ' + new Date().toLocaleString('ja-JP');
+    section.style.display = 'block';
+  } catch (e) {
+    console.error('リアルタイムBEP取得エラー:', e);
+    section.style.display = 'none';
+  }
 }
 
 // CSVパーサー（クォート対応）
