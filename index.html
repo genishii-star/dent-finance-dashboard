@@ -510,28 +510,28 @@
     <div class="bep-detail-grid">
       <div class="bep-detail-item">
         <div class="dl">PM売上（実績）</div>
-        <div class="dv" id="bepRtPm">-</div>
+        <div class="dv" id="bepRtPm" style="color:#007aff;">-</div>
         <div class="ds" id="bepRtPmSub">-</div>
+      </div>
+      <div class="bep-detail-item">
+        <div class="dl">PL分岐PM売上</div>
+        <div class="dv" id="bepRtPlTarget" style="color:#ff9500;">-</div>
+        <div class="ds" id="bepRtPlTargetSub">-</div>
+      </div>
+      <div class="bep-detail-item">
+        <div class="dl">CF分岐PM売上</div>
+        <div class="dv" id="bepRtCfTarget" style="color:#ff3b30;">-</div>
+        <div class="ds" id="bepRtCfTargetSub">-</div>
       </div>
       <div class="bep-detail-item">
         <div class="dl">BM売上（実績）</div>
         <div class="dv" id="bepRtBm">-</div>
-        <div class="ds" id="bepRtBmSub">-</div>
+        <div class="ds" id="bepRtBmSub">BM利益で固定費を相殺</div>
       </div>
       <div class="bep-detail-item">
-        <div class="dl">売上合計</div>
-        <div class="dv" id="bepRtTotal">-</div>
-        <div class="ds" id="bepRtTotalSub">-</div>
-      </div>
-      <div class="bep-detail-item">
-        <div class="dl">PL分岐売上</div>
-        <div class="dv" id="bepRtPlTarget" style="color:#ff9500;">-</div>
-        <div class="ds">固定費 ÷ 限界利益率</div>
-      </div>
-      <div class="bep-detail-item">
-        <div class="dl">CF分岐売上</div>
-        <div class="dv" id="bepRtCfTarget" style="color:#ff3b30;">-</div>
-        <div class="ds">（固定費+返済） ÷ 限界利益率</div>
+        <div class="dl">BM限界利益</div>
+        <div class="dv" id="bepRtBmContrib">-</div>
+        <div class="ds" id="bepRtBmContribSub">-</div>
       </div>
     </div>
     <div class="bep-gauge" id="bepGauge">
@@ -1116,66 +1116,67 @@ async function loadRealtimeBEP() {
 
     pmSales = Math.round(pmSales);
     bmSales = Math.round(bmSales);
-    const totalSales = pmSales + bmSales;
 
-    const bepPM = Number(document.getElementById('bepPM').value) || 30000;
-    const bepBM = Number(document.getElementById('bepBM').value) || 40000;
+    // BEP設定値を読み取り
     const r1 = Number(document.getElementById('bepSoftRate1').value) / 100;
     const r2 = Number(document.getElementById('bepSoftRate2').value) / 100;
     const bmRate = Number(document.getElementById('bepBMRate').value) / 100;
     const loan = Number(document.getElementById('bepLoan').value) || 0;
-    const revPerUnit = bepPM + bepBM;
-    const varPerUnit = Math.round(revPerUnit * r1) + Math.round(revPerUnit * r2) + Math.round(bepBM * bmRate);
-    const contribRate = revPerUnit > 0 ? (revPerUnit - varPerUnit) / revPerUnit : 0;
 
     let fixedTotal = 0;
     document.querySelectorAll('#bepFixedTable .bep-input[data-group="cogs"]').forEach(el => fixedTotal += Number(el.value) || 0);
     document.querySelectorAll('#bepFixedTable .bep-input[data-group="sga"]').forEach(el => fixedTotal += Number(el.value) || 0);
 
-    const plTargetSales = contribRate > 0 ? Math.round(fixedTotal / contribRate) : 0;
-    const cfTargetSales = contribRate > 0 ? Math.round((fixedTotal + loan) / contribRate) : 0;
+    // BM限界利益 = 実績BM × (1 - BM原価率 - ソフト按分率)
+    const bmContribRate = 1 - bmRate - r1 - r2;
+    const bmContrib = Math.round(bmSales * bmContribRate);
+
+    // PM分岐売上 = (固定費 - BM限界利益) ÷ PM限界利益率
+    // PM限界利益率 = 1 - r1 - r2（ソフト費用のみ）
+    const pmContribRate = 1 - r1 - r2;
+    const plPmTarget = pmContribRate > 0 ? Math.round((fixedTotal - bmContrib) / pmContribRate) : 0;
+    const cfPmTarget = pmContribRate > 0 ? Math.round((fixedTotal + loan - bmContrib) / pmContribRate) : 0;
 
     const fmtY = n => '¥' + Math.round(n).toLocaleString();
     const monthLabel = (now.getMonth() + 1) + '月';
     document.getElementById('bepRtMonth').textContent = monthLabel;
     document.getElementById('bepRtPm').textContent = fmtY(pmSales);
     document.getElementById('bepRtPmSub').textContent = resvCount + '件の予約';
+    document.getElementById('bepRtPlTarget').textContent = fmtY(plPmTarget);
+    document.getElementById('bepRtPlTargetSub').textContent = `固定費${fmtY(fixedTotal)} − BM利益${fmtY(bmContrib)}`;
+    document.getElementById('bepRtCfTarget').textContent = fmtY(cfPmTarget);
+    document.getElementById('bepRtCfTargetSub').textContent = `+借入返済${fmtY(loan)}`;
     document.getElementById('bepRtBm').textContent = fmtY(bmSales);
-    document.getElementById('bepRtBmSub').textContent = '清掃代行売上';
-    document.getElementById('bepRtTotal').textContent = fmtY(totalSales);
-    document.getElementById('bepRtTotalSub').textContent = 'PM + BM';
-    document.getElementById('bepRtPlTarget').textContent = fmtY(plTargetSales);
-    document.getElementById('bepRtCfTarget').textContent = fmtY(cfTargetSales);
+    document.getElementById('bepRtBmContrib').textContent = fmtY(bmContrib);
+    document.getElementById('bepRtBmContribSub').textContent = `利益率 ${(bmContribRate * 100).toFixed(1)}%`;
 
-    const gaugeMax = Math.max(cfTargetSales * 1.3, totalSales * 1.1);
-    const fillPct = Math.min(100, (totalSales / gaugeMax) * 100);
-    const plPct = Math.min(100, (plTargetSales / gaugeMax) * 100);
-    const cfPct = Math.min(100, (cfTargetSales / gaugeMax) * 100);
+    // ゲージ（PM売上 vs PM分岐）
+    const gaugeMax = Math.max(cfPmTarget * 1.3, pmSales * 1.1);
+    const fillPct = Math.min(100, (pmSales / gaugeMax) * 100);
+    const plPct = Math.min(100, (plPmTarget / gaugeMax) * 100);
+    const cfPct = Math.min(100, (cfPmTarget / gaugeMax) * 100);
 
     const fillEl = document.getElementById('bepGaugeFill');
     fillEl.style.width = fillPct + '%';
-    fillEl.style.background = totalSales >= cfTargetSales ? '#34c759' : totalSales >= plTargetSales ? '#ff9500' : '#ff3b30';
+    fillEl.style.background = pmSales >= cfPmTarget ? '#34c759' : pmSales >= plPmTarget ? '#ff9500' : '#ff3b30';
 
     document.getElementById('bepGaugePL').style.left = plPct + '%';
     document.getElementById('bepGaugeCF').style.left = cfPct + '%';
     document.getElementById('bepGaugeMax').textContent = fmtY(gaugeMax);
 
     const verdict = document.getElementById('bepRtVerdict');
-    if (totalSales >= cfTargetSales) {
+    if (pmSales >= cfPmTarget) {
       verdict.style.background = '#34c75920';
       verdict.style.color = '#34c759';
-      const surplus = totalSales - cfTargetSales;
-      verdict.textContent = `CF損益分岐クリア（+${fmtY(surplus)}）`;
-    } else if (totalSales >= plTargetSales) {
+      verdict.textContent = `CF損益分岐クリア（+${fmtY(pmSales - cfPmTarget)}）`;
+    } else if (pmSales >= plPmTarget) {
       verdict.style.background = '#ff950020';
       verdict.style.color = '#ff9500';
-      const toGo = cfTargetSales - totalSales;
-      verdict.textContent = `PL黒字 / CFまであと ${fmtY(toGo)}`;
+      verdict.textContent = `PL黒字 / CFまであと ${fmtY(cfPmTarget - pmSales)}`;
     } else {
       verdict.style.background = '#ff3b3020';
       verdict.style.color = '#ff3b30';
-      const toGo = plTargetSales - totalSales;
-      verdict.textContent = `PL分岐まであと ${fmtY(toGo)}`;
+      verdict.textContent = `PL分岐まであと ${fmtY(plPmTarget - pmSales)}`;
     }
 
     document.getElementById('bepRtTimestamp').textContent = '実績取得: ' + new Date().toLocaleString('ja-JP');
