@@ -113,6 +113,16 @@
     .bep-detail-item .dl { font-size: 11px; color: #666; margin-bottom: 4px; }
     .bep-detail-item .dv { font-size: 18px; font-weight: 700; }
     .bep-detail-item .ds { font-size: 11px; color: #999; margin-top: 2px; }
+
+    /* 月次チェックリスト */
+    .monthly-group { background: white; border-radius: 12px; padding: 20px 24px; }
+    .monthly-group h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+    .monthly-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f5f5f5; }
+    .monthly-item:last-child { border-bottom: none; }
+    .monthly-item input[type="checkbox"] { margin-top: 3px; width: 18px; height: 18px; accent-color: #007aff; cursor: pointer; flex-shrink: 0; }
+    .monthly-item label { font-size: 14px; cursor: pointer; flex: 1; }
+    .monthly-item label .note { display: block; font-size: 12px; color: #999; margin-top: 2px; }
+    .monthly-item.done label { text-decoration: line-through; color: #999; }
   </style>
 </head>
 <body>
@@ -141,6 +151,7 @@
   <button class="tab-btn" onclick="switchTab('cf')">CF</button>
   <button class="tab-btn" onclick="switchTab('bep')">BEP</button>
   <button class="tab-btn" onclick="switchTab('journal')">仕訳分析</button>
+  <button class="tab-btn" onclick="switchTab('monthly')">月次更新</button>
 </div>
 
 <!-- ========== KPI タブ ========== -->
@@ -754,6 +765,22 @@
 </div>
 </div>
 
+<!-- ========== 月次更新タブ ========== -->
+<div id="tab-monthly" class="tab-content">
+<div class="container">
+
+  <div class="notice">毎月初に実施するタスク一覧。チェックはブラウザに保存されます（localStorage）。月が変わるとリセット。</div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <h2 style="font-size:18px;font-weight:700;" id="monthlyTitle">-</h2>
+    <button onclick="resetMonthlyChecks()" style="padding:6px 14px;background:#ff3b30;color:white;border:none;border-radius:8px;font-size:12px;cursor:pointer;">リセット</button>
+  </div>
+
+  <div id="monthlyChecklist" style="display:grid;gap:12px;"></div>
+
+</div>
+</div>
+
 <script>
 // ==============================
 // 定数
@@ -848,6 +875,7 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   event.target.classList.add('active');
   if (name === 'bep') renderBEP();
+  if (name === 'monthly') renderMonthlyTab();
 }
 
 function renderBEP() { calcBEP(); loadRealtimeBEP(); }
@@ -918,6 +946,79 @@ function calcBEP() {
     html += `<tr${style}><td style="padding:8px;">¥${p.toLocaleString()}${isCur ? ' (現在)' : p === 46247 ? ' (前期実績)' : ''}</td><td style="padding:8px;">¥${r.toLocaleString()}</td><td style="padding:8px;">¥${v.toLocaleString()}</td><td style="padding:8px;">¥${c.toLocaleString()}</td><td style="padding:8px;color:#ff9500;font-weight:600;">${pl}件</td><td style="padding:8px;color:#ff3b30;font-weight:600;">${cf}件</td></tr>`;
   });
   document.getElementById('bepSensitivityTable').innerHTML = html;
+}
+
+// ============================================================
+// 月次更新チェックリスト
+// ============================================================
+const MONTHLY_TASKS = [
+  { group: 'BEP検証', color: '#007aff', tasks: [
+    { id: 'bep-fixed', label: 'BEPタブの固定費を最新PLと突合', note: '人件費・顧問料・家賃など変動がないか確認' },
+    { id: 'bep-pm', label: 'PM単価を実績で見直し', note: 'リアルタイムBEPのPM実績 ÷ 物件数と比較' },
+    { id: 'bep-bm', label: 'BM単価を実績で見直し', note: '清掃件数・単価に変動がないか' },
+    { id: 'bep-loan', label: '借入返済額を確認', note: '繰上返済・新規借入があれば更新' },
+  ]},
+  { group: 'freee確認', color: '#34c759', tasks: [
+    { id: 'freee-close', label: '前月の月次締めを確認', note: 'freeeで前月が締まっているか' },
+    { id: 'freee-pl', label: 'PL CSVをエクスポート・アップロード', note: 'freee → 試算表 → CSV → PLタブ' },
+    { id: 'freee-bs', label: 'BS CSVをエクスポート・アップロード', note: 'freee → 試算表 → CSV → BSタブ' },
+    { id: 'freee-journal', label: '仕訳CSVをエクスポート・アップロード', note: 'freee → 仕訳帳 → CSV → 仕訳分析タブ' },
+  ]},
+  { group: 'KPI更新', color: '#ff9500', tasks: [
+    { id: 'kpi-props', label: '管理物件数を更新', note: 'スプシのKPIシートに今月の物件数を記入' },
+    { id: 'kpi-unit', label: 'PM単価（実績）を記入', note: 'operationダッシュボードのPM売上 ÷ 物件数' },
+  ]},
+  { group: 'その他', color: '#9b59b6', tasks: [
+    { id: 'other-cleaning', label: '清掃内製化コスト確認', note: 'エリア別の清掃費タグを確認（仕訳分析）' },
+    { id: 'other-review', label: '前月の異常値・アラートを確認', note: '仕訳分析タブの異常値検出をチェック' },
+  ]},
+];
+
+function getMonthlyKey() {
+  const now = new Date();
+  return 'monthly_' + now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+}
+
+function getMonthlyState() {
+  try { return JSON.parse(localStorage.getItem(getMonthlyKey())) || {}; } catch { return {}; }
+}
+
+function saveMonthlyState(state) {
+  localStorage.setItem(getMonthlyKey(), JSON.stringify(state));
+}
+
+function renderMonthlyTab() {
+  const now = new Date();
+  document.getElementById('monthlyTitle').textContent = `${now.getFullYear()}年${now.getMonth() + 1}月 月次更新チェックリスト`;
+  const container = document.getElementById('monthlyChecklist');
+  const state = getMonthlyState();
+  let html = '';
+  MONTHLY_TASKS.forEach(g => {
+    html += `<div class="monthly-group"><h3 style="color:${g.color};">${g.group}</h3>`;
+    g.tasks.forEach(t => {
+      const checked = state[t.id] ? 'checked' : '';
+      const done = state[t.id] ? ' done' : '';
+      html += `<div class="monthly-item${done}" id="mi-${t.id}">
+        <input type="checkbox" id="mc-${t.id}" ${checked} onchange="toggleMonthly('${t.id}', this.checked)">
+        <label for="mc-${t.id}">${t.label}<span class="note">${t.note}</span></label>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  container.innerHTML = html;
+}
+
+function toggleMonthly(id, checked) {
+  const state = getMonthlyState();
+  state[id] = checked;
+  saveMonthlyState(state);
+  const item = document.getElementById('mi-' + id);
+  if (item) item.classList.toggle('done', checked);
+}
+
+function resetMonthlyChecks() {
+  localStorage.removeItem(getMonthlyKey());
+  renderMonthlyTab();
 }
 
 // ============================================================
