@@ -511,6 +511,7 @@
       <div class="period-presets" id="bepRtPeriodFilter">
         <button class="preset-btn" onclick="switchBepRtPeriod('prev')">前月</button>
         <button class="preset-btn active" onclick="switchBepRtPeriod('current')">今月</button>
+        <button class="preset-btn" onclick="switchBepRtPeriod('next')">来月</button>
       </div>
     </div>
     <div class="bep-detail-grid">
@@ -1114,6 +1115,8 @@ function renderBepRtData(resvRaw, propMap) {
   let targetDate = new Date(now);
   if (_bepRtPeriod === 'prev') {
     targetDate.setMonth(targetDate.getMonth() - 1);
+  } else if (_bepRtPeriod === 'next') {
+    targetDate.setMonth(targetDate.getMonth() + 1);
   }
   const targetYM = targetDate.getFullYear() + '-' + String(targetDate.getMonth() + 1).padStart(2, '0');
 
@@ -1168,7 +1171,7 @@ function renderBepRtData(resvRaw, propMap) {
 
   const fmtY = n => '¥' + Math.round(n).toLocaleString();
   const monthLabel = (targetDate.getMonth() + 1) + '月';
-  const periodLabel = _bepRtPeriod === 'prev' ? '（確定）' : '';
+  const periodLabel = _bepRtPeriod === 'prev' ? '（確定）' : _bepRtPeriod === 'next' ? '（予約ベース）' : '';
   document.getElementById('bepRtMonth').textContent = monthLabel + periodLabel;
   document.getElementById('bepRtPm').textContent = fmtY(pmSales);
   document.getElementById('bepRtPmSub').textContent = resvCount + '件の予約';
